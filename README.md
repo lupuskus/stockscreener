@@ -37,7 +37,7 @@ python stockscreener.py
 ```
 
 The program will:
-1. Display available stock list files (FTSE 100 and FTSE 250)
+1. Display available stock list files alphabetically (FTSE 100, FTSE 250, and personal watchlist)
 2. Prompt you to select which list to screen
 3. Fetch and display the latest OHLCV data for all stocks in the selected list
 
