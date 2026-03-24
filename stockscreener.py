@@ -54,6 +54,32 @@ for ticker in stocklist:
     except Exception as e:
         pass  # Silently skip unavailable tickers
 
+# Function to fetch index data
+def fetch_index_data(index_ticker, index_name):
+    """Fetch and display index data for market sentiment comparison"""
+    try:
+        index = yf.Ticker(index_ticker)
+        hist = index.history(period='1d')
+        if not hist.empty:
+            latest = hist.iloc[-1]
+            print(f"\n{index_name} Index Data:")
+            print("-" * 50)
+            print(f"Open:   {latest['Open']:>10.2f}")
+            print(f"High:   {latest['High']:>10.2f}")
+            print(f"Low:    {latest['Low']:>10.2f}")
+            print(f"Close:  {latest['Close']:>10.2f}")
+            print(f"Volume: {int(latest['Volume']):>12,}")
+            print("-" * 50)
+            return True
+    except Exception as e:
+        print(f"Could not fetch {index_name} data: {e}")
+        return False
+
+# Fetch and display index data for market sentiment
+print("\nFetching market index data for comparison...")
+fetch_index_data("^FTSE", "FTSE 100")
+fetch_index_data("^FTMC", "FTSE 250")
+
 # Create and display DataFrame
 if data_list:
     df = pd.DataFrame(data_list)
