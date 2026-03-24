@@ -58,10 +58,11 @@ Total stocks retrieved: 98/100
 
 ## Stock Lists
 
-The program includes two comprehensive stock lists:
+The program includes comprehensive stock lists:
 
 - **ftse100.stocks**: Contains all 100 FTSE 100 index constituents
 - **ftse250.stocks**: Contains 250+ FTSE 250 index constituents
+- **watchlist.stocks**: Personal watchlist with selected stocks (AZN.L, BGEO.L, MONY.L)
 
 All tickers use the `.L` suffix for London Stock Exchange listings.
 
