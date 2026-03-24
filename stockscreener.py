@@ -9,6 +9,7 @@ warnings.filterwarnings('ignore')
 # List available stock list files
 script_dir = os.path.dirname(__file__)
 txt_files = [f for f in os.listdir(script_dir) if f.endswith('.stocks')]
+txt_files.sort()  # Sort alphabetically
 
 print("Available stock list files:")
 for i, filename in enumerate(txt_files, 1):
