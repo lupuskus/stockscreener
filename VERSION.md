@@ -6,6 +6,7 @@ This document summarizes the main stock screener releases and their key changes.
 
 ### release/0.2.0 (current release state)
 
+- uploaded to Render.
 - Added stricter validation for `/screen` and `/history` requests.
 - Added clearer `400` error responses with field-specific details.
 - Added configurable timeout and retry handling for Yahoo Finance requests.
