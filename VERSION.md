@@ -1,28 +1,25 @@
 # Version History and Plan
 
-This document summarizes key past milestones and planned future milestones.
+This document summarizes the main stock screener releases and their key changes.
 
 ## Released
 
-### release/0.1.0 (current release state)
+### release/0.2.0 (current release state)
 
-- first version running on Render (https://stockscreener-tvyp.onrender.com) 
-- Added FastAPI backend in `backend/`.
-- Added endpoints for stock lists, screening, indexes, and ticker history.
-- Added React frontend in `frontend/` for list selection and result display.
-- Added startup helper script `startstockserver`.
-- Added market sentiment comparison with FTSE 100 and FTSE 250 index snapshots.
+- Added stricter validation for `/screen` and `/history` requests.
+- Added clearer `400` error responses with field-specific details.
+- Added configurable timeout and retry handling for Yahoo Finance requests.
+- Added watchlist endpoints with persistent ticker storage.
+- Added candlestick charts for price history.
+- Added trading volume overlays to charts.
+- Added table, chart, and split frontend views.
+- Added a progress indicator for longer screening runs.
 
-## Planned
+### release/0.1.0
 
-### release/0.2.0 (planned)
+- First deployed version running on Render: https://stockscreener-tvyp.onrender.com
+- Added a FastAPI backend for the stock screening API.
+- Added a static browser UI for list selection and results.
+- Added endpoints for stock lists, screening, market indexes, and price history.
+- Added FTSE 100 and FTSE 250 snapshots for market comparison.
 
-- Improve resilience for data fetch failures.
-- Add backend tests and baseline CI.
-- Improve frontend error and loading states.
-
-### release/0.3.0 (planned)
-
-- Add technical indicators and richer charting support.
-- Add export options for screening results.
-- Add containerized local run option.

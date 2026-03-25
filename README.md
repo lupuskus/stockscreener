@@ -3,7 +3,7 @@
 A Python stock screener for UK markets with:
 - a command-line script
 - a FastAPI backend
-- browser UIs (a React app in `frontend/` and a static UI served from `static/`)
+- a static browser UI served from `static/`
 
 The app fetches OHLCV market data from Yahoo Finance for stock lists (`*.stocks`) and index snapshots for FTSE 100 (`^FTSE`) and FTSE 250 (`^FTMC`).
 
@@ -14,7 +14,7 @@ The app fetches OHLCV market data from Yahoo Finance for stock lists (`*.stocks`
 - Fetch market index snapshots (FTSE 100 and FTSE 250)
 - Fetch ticker close-price history for charting
 - FastAPI endpoints for UI and API integration
-- React frontend with list selection, ticker preview, result table, and index cards
+- Static UI with list selection, ticker preview, result table, chart, and watchlist actions
 - Simple script `startstockserver` for local backend startup
 
 ## Project Structure
@@ -23,20 +23,23 @@ The app fetches OHLCV market data from Yahoo Finance for stock lists (`*.stocks`
 - `backend/app.py`: FastAPI app and API routes
 - `backend/service.py`: data fetching and stock list logic
 - `startstockserver`: helper script to start Uvicorn
-- `frontend/`: React + Vite frontend
 - `static/index.html`: static browser UI served by backend root route
 - `*.stocks`: stock universe files
 
 ## Requirements
 
 - Python 3.10+
-- Node.js 20+ and npm (for React frontend development)
 
 Python dependencies are listed in `requirements.txt`:
 - `yfinance>=0.2.0`
 - `pandas>=1.5.0`
 - `fastapi>=0.115.0`
 - `uvicorn>=0.30.0`
+
+Optional backend environment variables:
+- `STOCK_API_TIMEOUT_SECONDS` (default: `8.0`)
+- `STOCK_API_MAX_RETRIES` (default: `2`)
+- `STOCK_API_RETRY_BACKOFF_SECONDS` (default: `0.5`)
 
 ## Setup
 
@@ -84,20 +87,21 @@ uvicorn backend.app:app --reload
 
 The API is available at `http://127.0.0.1:8000`.
 
-### 3. React frontend (Vite)
-
-From repository root:
+To tune Yahoo Finance request behavior:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+export STOCK_API_TIMEOUT_SECONDS=8
+export STOCK_API_MAX_RETRIES=2
+export STOCK_API_RETRY_BACKOFF_SECONDS=0.5
+uvicorn backend.app:app --reload
 ```
 
-By default it calls `http://127.0.0.1:8000`. Override with `frontend/.env.local`:
+### 3. Static browser UI
 
-```bash
-VITE_API_URL=http://127.0.0.1:8000
+Open the backend URL directly in your browser:
+
+```text
+http://127.0.0.1:8000
 ```
 
 ## API Endpoints
@@ -106,8 +110,12 @@ VITE_API_URL=http://127.0.0.1:8000
 - `GET /health`
 - `GET /stock-lists`
 - `GET /stock-lists/{filename}`
+- `GET /watchlist`
+- `POST /watchlist`
+- `DELETE /watchlist/{ticker}`
 - `GET /indexes`
 - `GET /history/{ticker}?period=1mo`
+- `GET /history-ohlc/{ticker}?period=1mo`
 - `POST /screen`
 
 Example screen request:
