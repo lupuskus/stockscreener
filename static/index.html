@@ -392,8 +392,10 @@
   const elSub = $("chart-subtitle");
   const elLoader = $("chart-loader");
 
+  const DEFAULT_MARKET_TICKER = "^FTSE";
+
   let chart = null;
-  let currTicker = "^FTSE";
+  let currTicker = DEFAULT_MARKET_TICKER;
   let currPeriod = "1mo";
   let sortCol = "ticker";
   let sortAsc = true;
@@ -486,6 +488,13 @@
     });
   }
 
+  function showMarketChart() {
+    selectedTicker = "";
+    setSelectedRow();
+    currTicker = DEFAULT_MARKET_TICKER;
+    loadChart(currTicker, currPeriod);
+  }
+
   async function loadIndexes() {
     try {
       const res = await fetch(API + "/indexes");
@@ -506,14 +515,6 @@
 
       elStrip.innerHTML = items.join("");
 
-      elStrip.querySelectorAll(".mkt-item").forEach((el) => {
-        el.addEventListener("click", () => {
-          selectedTicker = "";
-          setSelectedRow();
-          currTicker = el.dataset.ticker;
-          loadChart(currTicker, currPeriod);
-        });
-      });
     } catch (err) {
       elStrip.innerHTML = '<div class="mkt-item"><span class="mkt-label" style="color:#dc2626">Index data unavailable</span></div>';
     }
@@ -533,6 +534,12 @@
         o.textContent = name.replace(".stocks", "").replace(/[-_]/g, " ").toUpperCase();
         elSelect.appendChild(o);
       });
+
+      if (lists.includes("watchlist.stocks")) {
+        elSelect.value = "watchlist.stocks";
+      } else if (lists.length > 0) {
+        elSelect.value = lists[0];
+      }
 
       elSelect.disabled = lists.length === 0;
       elBtn.disabled = lists.length === 0;
@@ -582,7 +589,7 @@
     setSelectedRow();
   }
 
-  elBtn.addEventListener("click", async () => {
+  async function runScreen() {
     elBtn.disabled = true;
     elBtn.textContent = "Loading...";
     elError.textContent = "";
@@ -613,7 +620,9 @@
       elBtn.disabled = false;
       elBtn.textContent = "Screen";
     }
-  });
+  }
+
+  elBtn.addEventListener("click", runScreen);
 
   document.querySelectorAll("thead th[data-col]").forEach((th) => {
     th.addEventListener("click", () => {
@@ -642,6 +651,16 @@
     loadChart(currTicker, currPeriod);
   });
 
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("#tbody tr[data-ticker]")) {
+      return;
+    }
+
+    if (selectedTicker || currTicker !== DEFAULT_MARKET_TICKER) {
+      showMarketChart();
+    }
+  });
+
   async function init() {
     try {
       const res = await fetch(API + "/health");
@@ -658,6 +677,9 @@
     }
 
     await Promise.all([loadIndexes(), loadLists()]);
+    if (elSelect.value) {
+      await runScreen();
+    }
     loadChart(currTicker, currPeriod);
   }
 
