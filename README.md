@@ -1,156 +1,138 @@
 # FTSE Stock Screener
 
-A Python-based stock screener that fetches real-time OHLCV (Open, High, Low, Close, Volume) data for FTSE 100 and FTSE 250 stocks using Yahoo Finance data.
+A Python stock screener for UK markets with:
+- a command-line script
+- a FastAPI backend
+- browser UIs (a React app in `frontend/` and a static UI served from `static/`)
 
-## Features
+The app fetches OHLCV market data from Yahoo Finance for stock lists (`*.stocks`) and index snapshots for FTSE 100 (`^FTSE`) and FTSE 250 (`^FTMC`).
 
-- **Interactive Stock List Selection**: Choose between FTSE 100 or FTSE 250 stock lists
-- **Real-time Data**: Fetches the latest trading data from Yahoo Finance
-- **Comprehensive OHLCV Display**: Shows Open, High, Low, Close prices and trading volume
-- **Error Handling**: Gracefully handles unavailable tickers
-- **Clean Output**: Formatted table display for easy reading
+## Current Features
 
-## Installation
+- List and load stock list files automatically (`ftse100.stocks`, `ftse250.stocks`, `watchlist.stocks`)
+- Screen a selected list and return latest OHLCV data per ticker
+- Fetch market index snapshots (FTSE 100 and FTSE 250)
+- Fetch ticker close-price history for charting
+- FastAPI endpoints for UI and API integration
+- React frontend with list selection, ticker preview, result table, and index cards
+- Simple script `startstockserver` for local backend startup
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/lupuskus/stockscreener.git
-   cd stockscreener
-   ```
+## Project Structure
 
-2. **Create a virtual environment (recommended):**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+- `stockscreener.py`: command-line screener
+- `backend/app.py`: FastAPI app and API routes
+- `backend/service.py`: data fetching and stock list logic
+- `startstockserver`: helper script to start Uvicorn
+- `frontend/`: React + Vite frontend
+- `static/index.html`: static browser UI served by backend root route
+- `*.stocks`: stock universe files
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+## Requirements
+
+- Python 3.10+
+- Node.js 20+ and npm (for React frontend development)
+
+Python dependencies are listed in `requirements.txt`:
+- `yfinance>=0.2.0`
+- `pandas>=1.5.0`
+- `fastapi>=0.115.0`
+- `uvicorn>=0.30.0`
+
+## Setup
+
+1. Clone repository:
+
+```bash
+git clone https://github.com/lupuskus/stockscreener.git
+cd stockscreener
+```
+
+2. Create and activate virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+3. Install Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Usage
 
-Run the stock screener:
+### 1. CLI mode
+
 ```bash
 python stockscreener.py
 ```
 
-### Backend API (Python)
+### 2. Backend API
 
-You can now run the screener as an HTTP backend:
+Run with helper script:
+
+```bash
+./startstockserver
+```
+
+Or run directly:
 
 ```bash
 uvicorn backend.app:app --reload
 ```
 
-Available endpoints:
-- `GET /health`
-- `GET /stock-lists`
-- `GET /stock-lists/{filename}`
-- `GET /indexes`
-- `POST /screen`
+The API is available at `http://127.0.0.1:8000`.
 
-Example request:
+### 3. React frontend (Vite)
+
+From repository root:
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/screen" \
-  -H "Content-Type: application/json" \
-  -d '{"stock_list": "ftse100.stocks", "period": "1d"}'
+cd frontend
+npm install
+npm run dev
 ```
 
-### Frontend Client (React)
-
-A browser frontend is available in [frontend](frontend).
-
-1. Start the Python backend first:
-   ```bash
-   .venv/bin/python -m uvicorn backend.app:app --reload
-   ```
-2. In a second terminal, start the React app:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-3. Open the local Vite URL shown in the terminal, usually `http://127.0.0.1:5173`.
-
-Optional: set a custom backend URL with `VITE_API_URL` in `frontend/.env.local`.
+By default it calls `http://127.0.0.1:8000`. Override with `frontend/.env.local`:
 
 ```bash
 VITE_API_URL=http://127.0.0.1:8000
 ```
 
-The frontend will:
-1. Display available stock list files alphabetically (FTSE 100, FTSE 250, and personal watchlist)
-2. Show the tickers inside the selected list before screening
-3. **Fetch and display FTSE 100 and FTSE 250 index data for market sentiment comparison**
-4. Fetch and display the latest OHLCV data for all stocks in the selected list
+## API Endpoints
 
-### Example Output
+- `GET /` serves `static/index.html`
+- `GET /health`
+- `GET /stock-lists`
+- `GET /stock-lists/{filename}`
+- `GET /indexes`
+- `GET /history/{ticker}?period=1mo`
+- `POST /screen`
+
+Example screen request:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/screen" \
+  -H "Content-Type: application/json" \
+  -d '{"stock_list":"ftse100.stocks","period":"1d"}'
 ```
-================================================================================
-Latest Trading Data (OHLCV) - ftse100_stocks.txt
-================================================================================
-Ticker       Open       High        Low      Close        Volume
-================================================================================
-AAL.L      2345.00    2370.00    2330.00    2355.00    2,145,678
-ABF.L       245.60     248.20     244.80     247.10    4,567,890
-...
-================================================================================
-
-Total stocks retrieved: 98/100
-```
-
-## Stock Lists
-
-The program includes comprehensive stock lists:
-
-- **ftse100.stocks**: Contains all 100 FTSE 100 index constituents
-- **ftse250.stocks**: Contains 250+ FTSE 250 index constituents
-- **watchlist.stocks**: Personal watchlist with selected stocks (AZN.L, BGEO.L, MONY.L)
-
-All tickers use the `.L` suffix for London Stock Exchange listings.
-
-## Market Sentiment Comparison
-
-The stock screener automatically fetches and displays FTSE 100 (^FTSE) and FTSE 250 (^FTMC) index data before showing individual stock data. This allows you to:
-
-- Compare individual stock performance against broader market trends
-- Assess whether stocks are outperforming or underperforming the market
-- Make more informed investment decisions based on market context
-
-## Requirements
-
-- Python 3.7+
-- yfinance (Yahoo Finance API)
-- pandas (Data manipulation)
-- Node.js 20+ and npm (for the React frontend)
-
-## Dependencies
-
-- `yfinance>=0.2.0` - Yahoo Finance data API
-- `pandas>=1.5.0` - Data analysis and display
 
 ## Data Source
 
-Stock data is sourced from Yahoo Finance via the yfinance library. Please note:
-- Data availability depends on Yahoo Finance's API
-- Some stocks may be temporarily unavailable
-- Historical data period is set to '1d' (latest trading day)
+Data is sourced from Yahoo Finance via `yfinance`.
 
-## Contributing
+- Availability depends on Yahoo Finance responses.
+- Some tickers may intermittently return no data.
 
-Feel free to contribute by:
-- Adding more stock indices
-- Improving error handling
-- Adding new features like technical indicators
-- Updating stock lists as indices change
+## Roadmap / TODO
 
-## License
+For active and planned work, see `TODO.md`.
 
-This project is open source. Feel free to use and modify as needed.
+## Version History and Plan
+
+For key past versions and planned future versions, see `VERSION.md`.
 
 ## Disclaimer
 
-This tool is for educational and informational purposes only. Not intended as financial advice. Always do your own research before making investment decisions.
+This project is for educational and informational use only, and is not financial advice.
