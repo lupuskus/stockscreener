@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Screener</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f3f5f8;
+      --surface: #ffffff;
+      --border: #e1e4ea;
+      --muted: #6d7480;
+      --text: #20242c;
+      --up: #16a34a;
+      --down: #dc2626;
+      --accent: #2563eb;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--bg);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #app {
+      display: grid;
+      grid-template-rows: auto auto auto 1fr;
+      height: 100vh;
+    }
+
+    #hdr {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    #hdr-title {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    #backend-badge {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    #market-strip {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      gap: 18px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .mkt-item {
+      display: inline-flex;
+      gap: 6px;
+      align-items: baseline;
+      cursor: pointer;
+      padding: 1px 0;
+    }
+
+    .mkt-item:hover .mkt-label {
+      text-decoration: underline;
+    }
+
+    .mkt-label { color: var(--muted); font-weight: 600; }
+    .mkt-price { font-weight: 700; }
+    .mkt-chg { font-weight: 600; }
+
+    .up { color: var(--up); }
+    .dn { color: var(--down); }
+    .flat { color: var(--muted); }
+
+    #controls {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #controls label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    #controls select {
+      border: 1px solid #cfd5df;
+      border-radius: 4px;
+      font-size: 12px;
+      padding: 4px 8px;
+      background: #fff;
+    }
+
+    #screen-btn {
+      border: 1px solid #1d4ed8;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      cursor: pointer;
+    }
+
+    #screen-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #status-msg {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    #error-msg {
+      color: var(--down);
+      font-size: 11px;
+    }
+
+    #workspace {
+      display: grid;
+      grid-template-columns: minmax(420px, 52%) minmax(420px, 48%);
+      gap: 10px;
+      padding: 10px;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    #table-panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .panel-head {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 700;
+      color: #3e4653;
+      background: #fbfcfe;
+    }
+
+    #table-wrap {
+      overflow: auto;
+      min-height: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      color: #4b5563;
+      font-weight: 700;
+      padding: 7px 9px;
+      text-align: left;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    thead th.numeric, td.numeric { text-align: right; }
+    thead th.sorted-asc::after { content: "  ^"; font-size: 10px; }
+    thead th.sorted-desc::after { content: "  v"; font-size: 10px; }
+
+    tbody tr {
+      border-bottom: 1px solid #edf1f5;
+      cursor: pointer;
+    }
+
+    tbody tr:hover { background: #f4f9ff; }
+    tbody tr.selected { background: #e7f0ff; }
+
+    td {
+      padding: 6px 9px;
+      white-space: nowrap;
+      color: #2f3641;
+    }
+
+    td.ticker {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    td.numeric {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+    }
+
+    #chart-panel {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      min-height: 0;
+    }
+
+    #chart-title-row {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    #chart-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    #chart-subtitle {
+      margin-top: 2px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    #period-btns {
+      display: flex;
+      gap: 6px;
+    }
+
+    .period-btn {
+      border: 1px solid #cfd5df;
+      border-radius: 4px;
+      background: #fff;
+      color: #374151;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      cursor: pointer;
+    }
+
+    .period-btn.active {
+      border-color: #1d4ed8;
+      background: #2563eb;
+      color: #fff;
+    }
+
+    #chart-wrap {
+      position: relative;
+      min-height: 0;
+      padding: 10px;
+    }
+
+    #the-chart {
+      position: absolute !important;
+      inset: 10px;
+    }
+
+    #chart-loader {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    @media (max-width: 1100px) {
+      body { overflow: auto; }
+      #app { height: auto; min-height: 100vh; }
+      #workspace {
+        grid-template-columns: 1fr;
+        grid-template-rows: 52vh 52vh;
+        height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header id="hdr">
+    <div id="hdr-title">Stock Screener</div>
+    <div id="backend-badge">Checking...</div>
+  </header>
+
+  <div id="market-strip">
+    <div class="mkt-item"><span class="mkt-label">Loading market data...</span></div>
+  </div>
+
+  <div id="controls">
+    <label for="list-select">List</label>
+    <select id="list-select" disabled></select>
+    <button id="screen-btn" disabled>Screen</button>
+    <span id="status-msg"></span>
+    <span id="error-msg"></span>
+  </div>
+
+  <main id="workspace">
+    <section id="table-panel" class="panel">
+      <div class="panel-head">Symbols</div>
+      <div id="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-col="ticker">Ticker</th>
+              <th class="numeric" data-col="close">Close</th>
+              <th class="numeric" data-col="chg">Chg</th>
+              <th class="numeric" data-col="chgpct">Chg %</th>
+              <th class="numeric" data-col="open">Open</th>
+              <th class="numeric" data-col="high">High</th>
+              <th class="numeric" data-col="low">Low</th>
+              <th class="numeric" data-col="volume">Volume</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr>
+              <td colspan="8" style="padding: 24px; text-align: center; color: #7c8592;">
+                Select a list and click Screen to load symbols.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="chart-panel" class="panel">
+      <div class="panel-head">Chart</div>
+      <div id="chart-title-row">
+        <div>
+          <div id="chart-title">FTSE 100</div>
+          <div id="chart-subtitle">Loading...</div>
+        </div>
+        <div id="period-btns">
+          <button class="period-btn" data-p="5d">5D</button>
+          <button class="period-btn active" data-p="1mo">1M</button>
+          <button class="period-btn" data-p="3mo">3M</button>
+          <button class="period-btn" data-p="6mo">6M</button>
+          <button class="period-btn" data-p="1y">1Y</button>
+        </div>
+      </div>
+      <div id="chart-wrap">
+        <canvas id="the-chart"></canvas>
+        <div id="chart-loader">Loading chart...</div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  const API = "";
+
+  const f2 = new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fVol = new Intl.NumberFormat("en-GB");
+  const p2 = (v) => f2.format(v);
+  const pVol = (v) => fVol.format(v);
+  const pPct = (v) => (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
+  const cls = (v) => (v > 0 ? "up" : v < 0 ? "dn" : "flat");
+
+  const $ = (id) => document.getElementById(id);
+  const elBadge = $("backend-badge");
+  const elStrip = $("market-strip");
+  const elSelect = $("list-select");
+  const elBtn = $("screen-btn");
+  const elStatus = $("status-msg");
+  const elError = $("error-msg");
+  const elTbody = $("tbody");
+  const elTitle = $("chart-title");
+  const elSub = $("chart-subtitle");
+  const elLoader = $("chart-loader");
+
+  let chart = null;
+  let currTicker = "^FTSE";
+  let currPeriod = "1mo";
+  let sortCol = "ticker";
+  let sortAsc = true;
+  let stockData = [];
+  let selectedTicker = "";
+
+  const IDX_TICKER = { ftse100: "^FTSE", ftse250: "^FTMC" };
+  const ctx = $("the-chart").getContext("2d");
+
+  function buildChart(labels, prices, label) {
+    if (chart) {
+      chart.destroy();
+      chart = null;
+    }
+
+    const rising = prices.length >= 2 && prices.at(-1) >= prices[0];
+    const col = rising ? "#16a34a" : "#dc2626";
+
+    chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label,
+          data: prices,
+          borderColor: col,
+          backgroundColor: col + "18",
+          borderWidth: 1.6,
+          pointRadius: 0,
+          tension: 0.2,
+          fill: true,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (c) => p2(c.parsed.y) } },
+        },
+        scales: {
+          x: {
+            ticks: { maxTicksLimit: 10, maxRotation: 0, color: "#7b8490", font: { size: 11 } },
+            grid: { color: "#edf2f7" },
+          },
+          y: {
+            position: "right",
+            ticks: { color: "#7b8490", font: { size: 11 }, callback: (v) => p2(v) },
+            grid: { color: "#edf2f7" },
+          },
+        },
+      },
+    });
+  }
+
+  async function loadChart(ticker, period) {
+    elLoader.style.display = "flex";
+    elTitle.textContent = ticker;
+    elSub.textContent = "Loading...";
+
+    try {
+      const res = await fetch(API + "/history/" + encodeURIComponent(ticker) + "?period=" + period);
+      if (!res.ok) throw new Error("No chart data");
+
+      const payload = await res.json();
+      const series = payload.series || [];
+      if (series.length === 0) throw new Error("Empty chart series");
+
+      const labels = series.map((d) => d.date);
+      const prices = series.map((d) => d.close);
+
+      buildChart(labels, prices, ticker);
+
+      const chg = prices.at(-1) - prices[0];
+      const pct = (chg / prices[0]) * 100;
+      const c = cls(chg);
+      elSub.innerHTML = '<span class="' + c + '">' + p2(prices.at(-1)) + " " + pPct(pct) + '</span><span style="color:#7b8490"> (' + period + ")</span>";
+    } catch (err) {
+      elSub.textContent = "Chart data unavailable";
+    } finally {
+      elLoader.style.display = "none";
+    }
+  }
+
+  function setSelectedRow() {
+    document.querySelectorAll("#tbody tr[data-ticker]").forEach((row) => {
+      row.classList.toggle("selected", row.dataset.ticker === selectedTicker);
+    });
+  }
+
+  async function loadIndexes() {
+    try {
+      const res = await fetch(API + "/indexes");
+      if (!res.ok) throw new Error("Index fetch failed");
+      const data = await res.json();
+
+      const items = Object.entries(data).map(([name, d]) => {
+        const chg = d.close - d.open;
+        const pct = (chg / d.open) * 100;
+        const ticker = IDX_TICKER[name] || name;
+
+        return '<div class="mkt-item" data-ticker="' + ticker + '">' +
+          '<span class="mkt-label">' + name.toUpperCase() + '</span>' +
+          '<span class="mkt-price">' + p2(d.close) + '</span>' +
+          '<span class="mkt-chg ' + cls(chg) + '">' + pPct(pct) + '</span>' +
+          '</div>';
+      });
+
+      elStrip.innerHTML = items.join("");
+
+      elStrip.querySelectorAll(".mkt-item").forEach((el) => {
+        el.addEventListener("click", () => {
+          selectedTicker = "";
+          setSelectedRow();
+          currTicker = el.dataset.ticker;
+          loadChart(currTicker, currPeriod);
+        });
+      });
+    } catch (err) {
+      elStrip.innerHTML = '<div class="mkt-item"><span class="mkt-label" style="color:#dc2626">Index data unavailable</span></div>';
+    }
+  }
+
+  async function loadLists() {
+    try {
+      const res = await fetch(API + "/stock-lists");
+      if (!res.ok) throw new Error("Stock list fetch failed");
+
+      const payload = await res.json();
+      const lists = payload.stock_lists || [];
+
+      lists.forEach((name) => {
+        const o = document.createElement("option");
+        o.value = name;
+        o.textContent = name.replace(".stocks", "").replace(/[-_]/g, " ").toUpperCase();
+        elSelect.appendChild(o);
+      });
+
+      elSelect.disabled = lists.length === 0;
+      elBtn.disabled = lists.length === 0;
+    } catch (err) {
+      elError.textContent = "Could not load stock lists.";
+    }
+  }
+
+  function renderTable() {
+    const rows = [...stockData].sort((a, b) => {
+      const va = a[sortCol] ?? 0;
+      const vb = b[sortCol] ?? 0;
+      if (typeof va === "string") return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortAsc ? va - vb : vb - va;
+    });
+
+    elTbody.innerHTML = rows.map((s) => {
+      const changeClass = cls(s.chg);
+      return '<tr data-ticker="' + s.ticker + '">' +
+        '<td class="ticker">' + s.ticker + '</td>' +
+        '<td class="numeric">' + p2(s.close) + '</td>' +
+        '<td class="numeric ' + changeClass + '">' + p2(s.chg) + '</td>' +
+        '<td class="numeric ' + changeClass + '">' + pPct(s.chgpct) + '</td>' +
+        '<td class="numeric">' + p2(s.open) + '</td>' +
+        '<td class="numeric">' + p2(s.high) + '</td>' +
+        '<td class="numeric">' + p2(s.low) + '</td>' +
+        '<td class="numeric">' + pVol(s.volume) + '</td>' +
+        '</tr>';
+    }).join("");
+
+    elTbody.querySelectorAll("tr[data-ticker]").forEach((row) => {
+      row.addEventListener("click", () => {
+        selectedTicker = row.dataset.ticker;
+        setSelectedRow();
+        currTicker = selectedTicker;
+        loadChart(currTicker, currPeriod);
+      });
+    });
+
+    document.querySelectorAll("thead th[data-col]").forEach((th) => {
+      th.classList.remove("sorted-asc", "sorted-desc");
+      if (th.dataset.col === sortCol) {
+        th.classList.add(sortAsc ? "sorted-asc" : "sorted-desc");
+      }
+    });
+
+    setSelectedRow();
+  }
+
+  elBtn.addEventListener("click", async () => {
+    elBtn.disabled = true;
+    elBtn.textContent = "Loading...";
+    elError.textContent = "";
+
+    try {
+      const res = await fetch(API + "/screen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stock_list: elSelect.value, period: "1d" }),
+      });
+
+      if (!res.ok) throw new Error("Screen request failed");
+
+      const payload = await res.json();
+      const stocks = payload.stocks || [];
+
+      stockData = stocks.map((s) => ({
+        ...s,
+        chg: s.close - s.open,
+        chgpct: ((s.close - s.open) / s.open) * 100,
+      }));
+
+      elStatus.textContent = payload.retrieved + " / " + payload.requested + " stocks";
+      renderTable();
+    } catch (err) {
+      elError.textContent = err.message || "Screen failed";
+    } finally {
+      elBtn.disabled = false;
+      elBtn.textContent = "Screen";
+    }
+  });
+
+  document.querySelectorAll("thead th[data-col]").forEach((th) => {
+    th.addEventListener("click", () => {
+      const col = th.dataset.col;
+      if (sortCol === col) {
+        sortAsc = !sortAsc;
+      } else {
+        sortCol = col;
+        sortAsc = true;
+      }
+
+      if (stockData.length > 0) {
+        renderTable();
+      }
+    });
+  });
+
+  $("period-btns").addEventListener("click", (event) => {
+    const btn = event.target.closest(".period-btn");
+    if (!btn) return;
+
+    document.querySelectorAll(".period-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    currPeriod = btn.dataset.p;
+    loadChart(currTicker, currPeriod);
+  });
+
+  async function init() {
+    try {
+      const res = await fetch(API + "/health");
+      if (res.ok) {
+        elBadge.textContent = "Online";
+        elBadge.style.color = "#16a34a";
+      } else {
+        elBadge.textContent = "Offline";
+        elBadge.style.color = "#dc2626";
+      }
+    } catch (err) {
+      elBadge.textContent = "Offline";
+      elBadge.style.color = "#dc2626";
+    }
+
+    await Promise.all([loadIndexes(), loadLists()]);
+    loadChart(currTicker, currPeriod);
+  }
+
+  init();
+</script>
+</body>
+</html>

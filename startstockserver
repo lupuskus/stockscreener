@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+# Activate a virtual environment if one exists alongside this script
+if [[ -f .venv/bin/activate ]]; then
+  source .venv/bin/activate
+fi
+
+exec uvicorn backend.app:app --host 0.0.0.0 --port 8000

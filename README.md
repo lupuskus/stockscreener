@@ -36,9 +36,54 @@ Run the stock screener:
 python stockscreener.py
 ```
 
-The program will:
+### Backend API (Python)
+
+You can now run the screener as an HTTP backend:
+
+```bash
+uvicorn backend.app:app --reload
+```
+
+Available endpoints:
+- `GET /health`
+- `GET /stock-lists`
+- `GET /stock-lists/{filename}`
+- `GET /indexes`
+- `POST /screen`
+
+Example request:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/screen" \
+  -H "Content-Type: application/json" \
+  -d '{"stock_list": "ftse100.stocks", "period": "1d"}'
+```
+
+### Frontend Client (React)
+
+A browser frontend is available in [frontend](frontend).
+
+1. Start the Python backend first:
+   ```bash
+   .venv/bin/python -m uvicorn backend.app:app --reload
+   ```
+2. In a second terminal, start the React app:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+3. Open the local Vite URL shown in the terminal, usually `http://127.0.0.1:5173`.
+
+Optional: set a custom backend URL with `VITE_API_URL` in `frontend/.env.local`.
+
+```bash
+VITE_API_URL=http://127.0.0.1:8000
+```
+
+The frontend will:
 1. Display available stock list files alphabetically (FTSE 100, FTSE 250, and personal watchlist)
-2. Prompt you to select which list to screen
+2. Show the tickers inside the selected list before screening
 3. **Fetch and display FTSE 100 and FTSE 250 index data for market sentiment comparison**
 4. Fetch and display the latest OHLCV data for all stocks in the selected list
 
@@ -80,6 +125,7 @@ The stock screener automatically fetches and displays FTSE 100 (^FTSE) and FTSE 
 - Python 3.7+
 - yfinance (Yahoo Finance API)
 - pandas (Data manipulation)
+- Node.js 20+ and npm (for the React frontend)
 
 ## Dependencies
 
