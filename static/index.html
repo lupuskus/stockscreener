@@ -31,7 +31,7 @@
 
     #app {
       display: grid;
-      grid-template-rows: auto auto auto auto 1fr;
+      grid-template-rows: auto auto auto auto 1fr auto;
       height: 100vh;
     }
 
@@ -386,6 +386,15 @@
       display: none;
     }
 
+    #build-info {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 11px;
+      padding: 6px 12px;
+      text-align: right;
+    }
+
     @media (max-width: 1100px) {
       body { overflow: auto; }
       #app { height: auto; min-height: 100vh; }
@@ -480,6 +489,8 @@
       </div>
     </section>
   </main>
+
+  <footer id="build-info">Build: loading...</footer>
 </div>
 
 <script>
@@ -512,6 +523,7 @@
   const elSub = $("chart-subtitle");
   const elLoader = $("chart-loader");
   const elCandle = $("candle-chart");
+  const elBuildInfo = $("build-info");
 
   const DEFAULT_MARKET_TICKER = "^FTSE";
 
@@ -770,6 +782,19 @@
     if (!res.ok) throw new Error("Watchlist fetch failed");
     const payload = await res.json();
     watchlistSet = new Set(payload.watchlist || []);
+  }
+
+  async function loadBuildInfo() {
+    try {
+      const res = await fetch(API + "/build-info");
+      if (!res.ok) throw new Error("Build metadata unavailable");
+      const payload = await res.json();
+      const branch = payload.branch || "unknown";
+      const shortCommit = payload.short_commit || "unknown";
+      elBuildInfo.textContent = "Build: " + branch + " @ " + shortCommit;
+    } catch {
+      elBuildInfo.textContent = "Build: local";
+    }
   }
 
   async function updateWatchlist(ticker, shouldAdd) {
@@ -1056,7 +1081,7 @@
       elBadge.style.color = "#dc2626";
     }
 
-    await Promise.all([loadIndexes(), loadLists(), loadWatchlist()]);
+    await Promise.all([loadIndexes(), loadLists(), loadWatchlist(), loadBuildInfo()]);
     if (elSelect.value) {
       await runScreen();
     }

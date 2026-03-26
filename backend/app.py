@@ -135,6 +135,18 @@ def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/build-info")
+def build_info() -> Dict[str, str]:
+    branch = os.getenv("RENDER_GIT_BRANCH") or os.getenv("GIT_BRANCH") or "local"
+    commit = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or "local"
+    short_commit = commit[:7] if commit and commit != "local" else commit
+    return {
+        "branch": branch,
+        "commit": commit,
+        "short_commit": short_commit,
+    }
+
+
 @app.get("/stock-lists")
 def stock_lists() -> Dict[str, List[str]]:
     return {"stock_lists": list_stock_files()}
