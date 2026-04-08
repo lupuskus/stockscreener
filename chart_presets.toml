@@ -1,0 +1,19 @@
+default_preset = "candles_volume"
+
+[[presets]]
+id = "candles_volume"
+label = "Candles + Volume"
+mode = "candles"
+default_indicator = "rsi"
+
+[[presets]]
+id = "technical_indicators"
+label = "Bollinger + Indicators"
+mode = "technical"
+default_indicator = "rsi"
+
+[[presets]]
+id = "welles_wilder"
+label = "Welles Wilder"
+mode = "wilder"
+default_indicator = "wilder_pack"

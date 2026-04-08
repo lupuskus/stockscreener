@@ -1,0 +1,1875 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Screener</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f3f5f8;
+      --surface: #ffffff;
+      --border: #e1e4ea;
+      --muted: #6d7480;
+      --text: #20242c;
+      --up: #16a34a;
+      --down: #dc2626;
+      --accent: #2563eb;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--bg);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #app {
+      display: grid;
+      grid-template-rows: auto auto auto auto 1fr;
+      height: 100vh;
+    }
+
+    #hdr {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    #hdr-title {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    #status-cluster {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #backend-badge {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    #build-info {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    #market-strip {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      gap: 18px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .mkt-item {
+      display: inline-flex;
+      gap: 6px;
+      align-items: baseline;
+      cursor: pointer;
+      padding: 1px 0;
+    }
+
+    .mkt-item:hover .mkt-label {
+      text-decoration: underline;
+    }
+
+    .mkt-label { color: var(--muted); font-weight: 600; }
+    .mkt-price { font-weight: 700; }
+    .mkt-chg { font-weight: 600; }
+
+    .up { color: var(--up); }
+    .dn { color: var(--down); }
+    .flat { color: var(--muted); }
+
+    #controls {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #controls label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    #controls select {
+      border: 1px solid #cfd5df;
+      border-radius: 4px;
+      font-size: 12px;
+      padding: 4px 8px;
+      background: #fff;
+    }
+
+    #status-msg {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    #error-msg {
+      color: var(--down);
+      font-size: 11px;
+    }
+
+    #screen-progress {
+      height: 0;
+      overflow: hidden;
+      background: var(--surface);
+      border-bottom: 1px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      transition: height 0.15s ease;
+    }
+
+    #screen-progress.visible {
+      height: 24px;
+      border-bottom-color: var(--border);
+    }
+
+    #screen-progress-track {
+      flex: 1;
+      height: 5px;
+      background: #e5e7eb;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    #screen-progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.15s ease;
+    }
+
+    #screen-progress-text {
+      font-size: 11px;
+      color: var(--muted);
+      min-width: 64px;
+      text-align: right;
+    }
+
+    #workspace {
+      display: grid;
+      grid-template-columns: minmax(420px, 52%) minmax(420px, 48%);
+      gap: 10px;
+      padding: 10px;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    #table-panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .panel-head {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 700;
+      color: #3e4653;
+      background: #fbfcfe;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    #table-preset-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    #table-preset-select {
+      border: 1px solid #cfd5df;
+      border-radius: 4px;
+      font-size: 11px;
+      padding: 3px 8px;
+      background: #fff;
+      color: #374151;
+    }
+
+    #table-wrap {
+      overflow: auto;
+      min-height: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      color: #4b5563;
+      font-weight: 700;
+      padding: 7px 9px;
+      text-align: left;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    thead th.numeric, td.numeric { text-align: right; }
+    thead th.sorted-asc::after { content: "  ^"; font-size: 10px; }
+    thead th.sorted-desc::after { content: "  v"; font-size: 10px; }
+
+    tbody tr {
+      border-bottom: 1px solid #edf1f5;
+      cursor: pointer;
+    }
+
+    tbody tr:hover { background: #f4f9ff; }
+    tbody tr.selected { background: #e7f0ff; }
+
+    td {
+      padding: 6px 9px;
+      white-space: nowrap;
+      color: #2f3641;
+    }
+
+    td.ticker {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    td.numeric {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+    }
+
+    th.watch-col,
+    td.watch-col {
+      width: 56px;
+      min-width: 56px;
+      max-width: 56px;
+      text-align: center;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+
+    .watch-toggle {
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+      accent-color: #2563eb;
+    }
+
+    .watch-toggle:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
+    #chart-panel {
+      display: grid;
+      grid-template-rows: auto auto minmax(260px, 1fr) auto;
+      min-height: 0;
+    }
+
+    #chart-title-row {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    #chart-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    #chart-subtitle {
+      margin-top: 2px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    #period-btns {
+      display: flex;
+      gap: 6px;
+    }
+
+    #chart-preset-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-right: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    #chart-preset-select,
+    #indicator-select {
+      border: 1px solid #cfd5df;
+      border-radius: 4px;
+      background: #fff;
+      color: #374151;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+    }
+
+    #indicator-select-wrap {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      margin-right: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .period-btn {
+      border: 1px solid #cfd5df;
+      border-radius: 4px;
+      background: #fff;
+      color: #374151;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      cursor: pointer;
+    }
+
+    .period-btn.active {
+      border-color: #1d4ed8;
+      background: #2563eb;
+      color: #fff;
+    }
+
+    #chart-wrap {
+      position: relative;
+      min-height: 0;
+      padding: 10px;
+    }
+
+    #the-chart {
+      position: absolute !important;
+      inset: 10px;
+    }
+
+    #candle-chart {
+      position: absolute;
+      inset: 10px;
+      display: none;
+    }
+
+    #chart-loader {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    #indicator-panel {
+      display: none;
+      border-top: 1px solid var(--border);
+      padding: 10px;
+      height: 180px;
+    }
+
+    #indicator-panel.visible {
+      display: block;
+    }
+
+    #indicator-canvas {
+      width: 100%;
+      height: 160px;
+    }
+
+    .view-btns {
+      display: flex;
+      gap: 4px;
+    }
+
+    .view-btn {
+      border: 1px solid #cfd5df;
+      border-radius: 4px;
+      background: #fff;
+      color: #374151;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      cursor: pointer;
+    }
+
+    .view-btn.active {
+      border-color: #1d4ed8;
+      background: #2563eb;
+      color: #fff;
+    }
+
+    #workspace.view-table {
+      grid-template-columns: 1fr;
+    }
+
+    #workspace.view-table #chart-panel {
+      display: none;
+    }
+
+    #workspace.view-chart {
+      grid-template-columns: 1fr;
+    }
+
+    #workspace.view-chart #table-panel {
+      display: none;
+    }
+
+    @media (max-width: 1100px) {
+      body { overflow: auto; }
+      #app { height: auto; min-height: 100vh; }
+      #workspace {
+        grid-template-columns: 1fr;
+        grid-template-rows: 52vh 52vh;
+        height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header id="hdr">
+    <div id="hdr-title">Stock Screener</div>
+    <div id="status-cluster">
+      <div id="backend-badge">Checking...</div>
+      <div id="build-info">Build: loading...</div>
+    </div>
+  </header>
+
+  <div id="market-strip">
+    <div class="mkt-item"><span class="mkt-label">Loading market data...</span></div>
+  </div>
+
+  <div id="controls">
+    <label for="list-select">List</label>
+    <select id="list-select" disabled></select>
+    <span id="status-msg"></span>
+    <span id="error-msg"></span>
+    <div class="view-btns" style="margin-left:auto">
+      <button class="view-btn" data-view="table" title="Table only">Table</button>
+      <button class="view-btn active" data-view="split" title="Split view">Split</button>
+      <button class="view-btn" data-view="chart" title="Chart only">Chart</button>
+    </div>
+  </div>
+
+  <div id="screen-progress">
+    <div id="screen-progress-track"><div id="screen-progress-fill"></div></div>
+    <span id="screen-progress-text"></span>
+  </div>
+
+  <main id="workspace">
+    <section id="table-panel" class="panel">
+      <div class="panel-head">
+        <span>Symbols</span>
+        <div id="table-preset-wrap">
+          <label for="table-preset-select">View</label>
+          <select id="table-preset-select" disabled></select>
+        </div>
+      </div>
+      <div id="table-wrap">
+        <table>
+          <thead>
+            <tr id="thead-row"></tr>
+          </thead>
+          <tbody id="tbody">
+            <tr>
+              <td colspan="1" style="padding: 24px; text-align: center; color: #7c8592;">
+                Select a list to load symbols.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="chart-panel" class="panel">
+      <div class="panel-head">Chart</div>
+      <div id="chart-title-row">
+        <div>
+          <div id="chart-title">FTSE 100</div>
+          <div id="chart-subtitle">Loading...</div>
+        </div>
+        <div id="chart-preset-wrap">
+          <label for="chart-preset-select">Chart</label>
+          <select id="chart-preset-select" disabled></select>
+        </div>
+        <div id="indicator-select-wrap">
+          <label for="indicator-select">Indicator</label>
+          <select id="indicator-select">
+            <option value="rsi">RSI</option>
+            <option value="atr">ATR</option>
+            <option value="adx_dmi">ADX / DMI / ADXR</option>
+            <option value="wilder_pack">Wilder Pack</option>
+          </select>
+        </div>
+        <div id="period-btns">
+          <button class="period-btn" data-p="5d">5D</button>
+          <button class="period-btn active" data-p="1mo">1M</button>
+          <button class="period-btn" data-p="3mo">3M</button>
+          <button class="period-btn" data-p="6mo">6M</button>
+          <button class="period-btn" data-p="1y">1Y</button>
+        </div>
+      </div>
+      <div id="chart-wrap">
+        <canvas id="the-chart"></canvas>
+        <div id="candle-chart"></div>
+        <div id="chart-loader">Loading chart...</div>
+      </div>
+      <div id="indicator-panel">
+        <canvas id="indicator-canvas"></canvas>
+      </div>
+    </section>
+  </main>
+
+</div>
+
+<script>
+  const API = "";
+
+  const f2 = new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fVol = new Intl.NumberFormat("en-GB");
+  const p2 = (v) => f2.format(v);
+  const pVol = (v) => fVol.format(v);
+  const pVolAxis = (v) => {
+    if (v >= 1e9) return (v / 1e9).toFixed(1).replace(/\.0$/, "") + "B";
+    if (v >= 1e6) return (v / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+    if (v >= 1e3) return (v / 1e3).toFixed(0) + "K";
+    return String(v);
+  };
+  const pPct = (v) => (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
+  const cls = (v) => (v > 0 ? "up" : v < 0 ? "dn" : "flat");
+  const pRatio = (v) => Number(v).toFixed(2);
+  const pYieldPct = (v) => Number(v * 100).toFixed(2) + "%";
+  const pMarketCap = (v) => {
+    if (v >= 1e12) return (v / 1e12).toFixed(2) + "T";
+    if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
+    if (v >= 1e6) return (v / 1e6).toFixed(2) + "M";
+    return pVol(v);
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const elBadge = $("backend-badge");
+  const elStrip = $("market-strip");
+  const elSelect = $("list-select");
+  const elStatus = $("status-msg");
+  const elError = $("error-msg");
+  const elProgress = $("screen-progress");
+  const elProgressFill = $("screen-progress-fill");
+  const elProgressText = $("screen-progress-text");
+  const elTheadRow = $("thead-row");
+  const elTbody = $("tbody");
+  const elPresetSelect = $("table-preset-select");
+  const elTitle = $("chart-title");
+  const elSub = $("chart-subtitle");
+  const elLoader = $("chart-loader");
+  const elCandle = $("candle-chart");
+  const elIndicatorPanel = $("indicator-panel");
+  const indicatorCtx = $("indicator-canvas").getContext("2d");
+  const elChartPresetSelect = $("chart-preset-select");
+  const elIndicatorSelectWrap = $("indicator-select-wrap");
+  const elIndicatorSelect = $("indicator-select");
+  const elBuildInfo = $("build-info");
+
+  const DEFAULT_MARKET_TICKER = "^FTSE";
+
+  let chart = null;
+  let candleChart = null;
+  let candleSeries = null;
+  let candleVolumeSeries = null;
+  let candleSarSeries = null;
+  let indicatorChart = null;
+  let currentCandleData = [];
+  let chartPresets = [];
+  let currChartPresetId = "";
+  let currIndicator = "rsi";
+  let currTicker = DEFAULT_MARKET_TICKER;
+  let currPeriod = "1mo";
+  let sortCol = "ticker";
+  let sortAsc = true;
+  let stockData = [];
+  let selectedTicker = "";
+  let tablePresets = [];
+  let currTablePresetId = "";
+  let watchlistSet = new Set();
+  const watchlistBusy = new Set();
+
+  const IDX_TICKER = { ftse100: "^FTSE", ftse250: "^FTMC" };
+  const ctx = $("the-chart").getContext("2d");
+
+  function fallbackTablePresets() {
+    return {
+      default_preset: "ohlcv",
+      presets: [
+        {
+          id: "ohlcv",
+          label: "OHLC + Volume",
+          columns: [
+            { key: "ticker", label: "Ticker", format: "text", sortable: true },
+            { key: "watch_toggle", label: "Watch", format: "watch_toggle", sortable: false },
+            { key: "close", label: "Close", format: "price", sortable: true },
+            { key: "chg", label: "Chg", format: "price", sortable: true },
+            { key: "chgpct", label: "Chg %", format: "percent", sortable: true },
+            { key: "open", label: "Open", format: "price", sortable: true },
+            { key: "high", label: "High", format: "price", sortable: true },
+            { key: "low", label: "Low", format: "price", sortable: true },
+            { key: "volume", label: "Volume", format: "volume", sortable: true },
+          ],
+        },
+      ],
+    };
+  }
+
+  function getCurrentPreset() {
+    return tablePresets.find((preset) => preset.id === currTablePresetId) || tablePresets[0] || null;
+  }
+
+  function ensureSortColumnForPreset() {
+    const preset = getCurrentPreset();
+    if (!preset) {
+      sortCol = "ticker";
+      sortAsc = true;
+      return;
+    }
+
+    const sortableColumns = (preset.columns || []).filter((column) => column.sortable);
+    const hasCurrentSort = sortableColumns.some((column) => column.key === sortCol);
+    if (!hasCurrentSort) {
+      sortCol = sortableColumns.length > 0 ? sortableColumns[0].key : "ticker";
+      sortAsc = true;
+    }
+  }
+
+  function isNumericFormat(format) {
+    return ["price", "percent", "volume", "market_cap", "ratio", "yield_percent"].includes(format);
+  }
+
+  function renderEmptyTable(message) {
+    const preset = getCurrentPreset();
+    const colspan = Math.max((preset?.columns || []).length, 1);
+    elTbody.innerHTML = '<tr><td colspan="' + colspan + '" style="padding: 24px; text-align: center; color: #7c8592;">' + message + '</td></tr>';
+  }
+
+  function updateSortHeaderState() {
+    document.querySelectorAll("thead th[data-col]").forEach((th) => {
+      th.classList.remove("sorted-asc", "sorted-desc");
+      if (th.dataset.col === sortCol) {
+        th.classList.add(sortAsc ? "sorted-asc" : "sorted-desc");
+      }
+    });
+  }
+
+  function renderTableHeader() {
+    const preset = getCurrentPreset();
+    if (!preset) {
+      return;
+    }
+
+    elTheadRow.innerHTML = "";
+    preset.columns.forEach((column) => {
+      const th = document.createElement("th");
+      th.textContent = column.label;
+
+      if (column.key === "watch_toggle") {
+        th.classList.add("watch-col");
+        th.title = "Watchlist";
+      } else if (isNumericFormat(column.format)) {
+        th.classList.add("numeric");
+      }
+
+      if (column.sortable) {
+        th.dataset.col = column.key;
+        th.addEventListener("click", () => {
+          if (sortCol === column.key) {
+            sortAsc = !sortAsc;
+          } else {
+            sortCol = column.key;
+            sortAsc = true;
+          }
+          if (stockData.length > 0) {
+            renderTable();
+          }
+        });
+      }
+
+      elTheadRow.appendChild(th);
+    });
+
+    updateSortHeaderState();
+  }
+
+  function formatCellValue(column, stock) {
+    if (column.key === "watch_toggle") {
+      const inWatchlist = watchlistSet.has(stock.ticker);
+      const busy = watchlistBusy.has(stock.ticker);
+      return '<input class="watch-toggle" type="checkbox" data-watch-ticker="' + stock.ticker + '"' +
+        (inWatchlist ? " checked" : "") +
+        (busy ? " disabled" : "") +
+        ' aria-label="Toggle watchlist for ' + stock.ticker + '">';
+    }
+
+    const value = stock[column.key];
+    if (value == null || Number.isNaN(value)) {
+      return "--";
+    }
+
+    switch (column.format) {
+      case "price":
+        return p2(value);
+      case "percent":
+        return pPct(value);
+      case "volume":
+        return pVol(value);
+      case "market_cap":
+        return pMarketCap(value);
+      case "ratio":
+        return pRatio(value);
+      case "yield_percent":
+        return pYieldPct(value);
+      default:
+        return String(value);
+    }
+  }
+
+  async function loadTablePresets() {
+    let payload = fallbackTablePresets();
+    try {
+      const res = await fetch(API + "/table-presets");
+      if (res.ok) {
+        payload = await res.json();
+      }
+    } catch {
+      payload = fallbackTablePresets();
+    }
+
+    tablePresets = Array.isArray(payload.presets) && payload.presets.length > 0
+      ? payload.presets
+      : fallbackTablePresets().presets;
+
+    const availableIds = new Set(tablePresets.map((preset) => preset.id));
+    currTablePresetId = availableIds.has(payload.default_preset)
+      ? payload.default_preset
+      : tablePresets[0].id;
+
+    elPresetSelect.innerHTML = "";
+    tablePresets.forEach((preset) => {
+      const option = document.createElement("option");
+      option.value = preset.id;
+      option.textContent = preset.label;
+      elPresetSelect.appendChild(option);
+    });
+
+    elPresetSelect.value = currTablePresetId;
+    elPresetSelect.disabled = false;
+    ensureSortColumnForPreset();
+    renderTableHeader();
+    renderEmptyTable("Select a list to load symbols.");
+  }
+
+  async function loadChartPresets() {
+    let payload = fallbackChartPresets();
+    try {
+      const res = await fetch(API + "/chart-presets");
+      if (res.ok) {
+        payload = await res.json();
+      }
+    } catch {
+      payload = fallbackChartPresets();
+    }
+
+    chartPresets = Array.isArray(payload.presets) && payload.presets.length > 0
+      ? payload.presets
+      : fallbackChartPresets().presets;
+
+    const availableIds = new Set(chartPresets.map((preset) => preset.id));
+    currChartPresetId = availableIds.has(payload.default_preset)
+      ? payload.default_preset
+      : chartPresets[0].id;
+
+    elChartPresetSelect.innerHTML = "";
+    chartPresets.forEach((preset) => {
+      const option = document.createElement("option");
+      option.value = preset.id;
+      option.textContent = preset.label;
+      elChartPresetSelect.appendChild(option);
+    });
+    elChartPresetSelect.value = currChartPresetId;
+    elChartPresetSelect.disabled = false;
+
+    const selectedPreset = getCurrentChartPreset();
+    currIndicator = selectedPreset?.default_indicator || "rsi";
+    elIndicatorSelect.value = currIndicator;
+  }
+
+  function setChartMode(mode) {
+    const lineCanvas = $("the-chart");
+    if (mode === "technical") {
+      elCandle.style.display = "none";
+      lineCanvas.style.display = "block";
+    } else {
+      lineCanvas.style.display = "none";
+      elCandle.style.display = "block";
+    }
+  }
+
+  function fallbackChartPresets() {
+    return {
+      default_preset: "candles_volume",
+      presets: [
+        { id: "candles_volume", label: "Candles + Volume", mode: "candles", default_indicator: "rsi" },
+        { id: "technical_indicators", label: "Bollinger + Indicators", mode: "technical", default_indicator: "rsi" },
+        { id: "welles_wilder", label: "Welles Wilder", mode: "wilder", default_indicator: "wilder_pack" },
+      ],
+    };
+  }
+
+  function getCurrentChartPreset() {
+    return chartPresets.find((preset) => preset.id === currChartPresetId) || chartPresets[0] || null;
+  }
+
+  function ensureCandleChart() {
+    if (candleChart) {
+      return;
+    }
+
+    if (!window.LightweightCharts || typeof LightweightCharts.createChart !== "function") {
+      throw new Error("Candlestick chart library unavailable");
+    }
+
+    candleChart = LightweightCharts.createChart(elCandle, {
+      layout: {
+        background: { color: "#ffffff" },
+        textColor: "#4b5563",
+      },
+      grid: {
+        vertLines: { color: "#edf2f7" },
+        horzLines: { color: "#edf2f7" },
+      },
+      rightPriceScale: {
+        borderColor: "#e1e4ea",
+        mode: 1,
+      },
+      leftPriceScale: {
+        visible: true,
+        borderColor: "#e1e4ea",
+        scaleMargins: { top: 0.8, bottom: 0 },
+      },
+      timeScale: {
+        borderColor: "#e1e4ea",
+      },
+      width: elCandle.clientWidth,
+      height: elCandle.clientHeight,
+    });
+
+    if (typeof candleChart.addCandlestickSeries !== "function") {
+      throw new Error("Candlestick chart API unavailable");
+    }
+
+    candleSeries = candleChart.addCandlestickSeries({
+      upColor: "#16a34a",
+      downColor: "#dc2626",
+      wickUpColor: "#16a34a",
+      wickDownColor: "#dc2626",
+      borderVisible: false,
+    });
+
+    candleVolumeSeries = candleChart.addHistogramSeries({
+      priceFormat: { type: "volume" },
+      priceScaleId: "left",
+      lastValueVisible: true,
+    });
+
+    candleSarSeries = candleChart.addLineSeries({
+      color: "#f59e0b",
+      lineWidth: 1,
+      crosshairMarkerVisible: false,
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+  }
+
+  function updateCandleSpacing(candles) {
+    if (!candleChart || !candles || candles.length === 0) {
+      return;
+    }
+
+    const containerWidth = Math.max(elCandle.clientWidth, 320);
+    const candleCount = Math.max(candles.length, 1);
+    const targetSpacing = containerWidth / candleCount;
+    const barSpacing = Math.min(Math.max(targetSpacing * 0.9, 1.5), 32);
+
+    candleChart.timeScale().applyOptions({
+      barSpacing,
+      minBarSpacing: Math.min(Math.max(barSpacing * 0.6, 0.5), barSpacing),
+      rightOffset: 0,
+    });
+    candleChart.timeScale().fitContent();
+  }
+
+  function buildChart(labels, prices, volumes, volumeColors, label) {
+    if (chart) {
+      chart.destroy();
+      chart = null;
+    }
+
+    const rising = prices.length >= 2 && prices.at(-1) >= prices[0];
+    const col = rising ? "#16a34a" : "#dc2626";
+
+    chart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            type: "line",
+            label,
+            data: prices,
+            borderColor: col,
+            backgroundColor: col + "18",
+            borderWidth: 1.6,
+            pointRadius: 0,
+            tension: 0.2,
+            fill: true,
+            yAxisID: "price",
+            order: 1,
+          },
+          {
+            type: "bar",
+            label: "Volume",
+            data: volumes,
+            backgroundColor: volumeColors,
+            borderWidth: 0,
+            yAxisID: "volume",
+            order: 2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (c) => {
+                if (c.dataset.label === "Volume") {
+                  return "Volume: " + pVol(c.parsed.y);
+                }
+                return p2(c.parsed.y);
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: { maxTicksLimit: 10, maxRotation: 0, color: "#7b8490", font: { size: 11 } },
+            grid: { color: "#edf2f7" },
+          },
+          price: {
+            type: "logarithmic",
+            position: "right",
+            ticks: { color: "#7b8490", font: { size: 11 }, callback: (v) => p2(v) },
+            grid: { color: "#edf2f7" },
+          },
+          volume: {
+            position: "left",
+            display: true,
+            beginAtZero: true,
+            grid: { display: false },
+            ticks: {
+              color: "#7b8490",
+              font: { size: 10 },
+              maxTicksLimit: 4,
+              callback: (v) => pVolAxis(v),
+            },
+          },
+        },
+      },
+    });
+  }
+
+  function computeBollinger(closes, period = 20, multiplier = 2) {
+    const middle = Array(closes.length).fill(null);
+    const upper = Array(closes.length).fill(null);
+    const lower = Array(closes.length).fill(null);
+
+    for (let i = period - 1; i < closes.length; i += 1) {
+      const window = closes.slice(i - period + 1, i + 1);
+      const mean = window.reduce((sum, v) => sum + v, 0) / period;
+      const variance = window.reduce((sum, v) => sum + (v - mean) ** 2, 0) / period;
+      const stddev = Math.sqrt(variance);
+      middle[i] = mean;
+      upper[i] = mean + multiplier * stddev;
+      lower[i] = mean - multiplier * stddev;
+    }
+
+    return { middle, upper, lower };
+  }
+
+  function computeRSI(closes, period = 14) {
+    const rsi = Array(closes.length).fill(null);
+    if (closes.length <= period) {
+      return rsi;
+    }
+
+    let gains = 0;
+    let losses = 0;
+    for (let i = 1; i <= period; i += 1) {
+      const delta = closes[i] - closes[i - 1];
+      if (delta >= 0) gains += delta;
+      else losses += Math.abs(delta);
+    }
+
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+    rsi[period] = avgLoss === 0 ? 100 : 100 - (100 / (1 + avgGain / avgLoss));
+
+    for (let i = period + 1; i < closes.length; i += 1) {
+      const delta = closes[i] - closes[i - 1];
+      const gain = delta > 0 ? delta : 0;
+      const loss = delta < 0 ? Math.abs(delta) : 0;
+      avgGain = ((avgGain * (period - 1)) + gain) / period;
+      avgLoss = ((avgLoss * (period - 1)) + loss) / period;
+      rsi[i] = avgLoss === 0 ? 100 : 100 - (100 / (1 + avgGain / avgLoss));
+    }
+
+    return rsi;
+  }
+
+  function computeATR(highs, lows, closes, period = 14) {
+    const tr = Array(closes.length).fill(null);
+    const atr = Array(closes.length).fill(null);
+
+    for (let i = 0; i < closes.length; i += 1) {
+      if (i === 0) {
+        tr[i] = highs[i] - lows[i];
+      } else {
+        tr[i] = Math.max(
+          highs[i] - lows[i],
+          Math.abs(highs[i] - closes[i - 1]),
+          Math.abs(lows[i] - closes[i - 1])
+        );
+      }
+    }
+
+    if (closes.length <= period) {
+      return atr;
+    }
+
+    let firstAtr = 0;
+    for (let i = 1; i <= period; i += 1) {
+      firstAtr += tr[i] ?? 0;
+    }
+    atr[period] = firstAtr / period;
+
+    for (let i = period + 1; i < closes.length; i += 1) {
+      atr[i] = ((atr[i - 1] * (period - 1)) + tr[i]) / period;
+    }
+
+    return atr;
+  }
+
+  function computeAdxDmi(highs, lows, closes, period = 14) {
+    const plusDM = Array(closes.length).fill(0);
+    const minusDM = Array(closes.length).fill(0);
+    const tr = Array(closes.length).fill(0);
+    const plusDI = Array(closes.length).fill(null);
+    const minusDI = Array(closes.length).fill(null);
+    const dx = Array(closes.length).fill(null);
+    const adx = Array(closes.length).fill(null);
+    const adxr = Array(closes.length).fill(null);
+
+    for (let i = 1; i < closes.length; i += 1) {
+      const upMove = highs[i] - highs[i - 1];
+      const downMove = lows[i - 1] - lows[i];
+      plusDM[i] = (upMove > downMove && upMove > 0) ? upMove : 0;
+      minusDM[i] = (downMove > upMove && downMove > 0) ? downMove : 0;
+
+      tr[i] = Math.max(
+        highs[i] - lows[i],
+        Math.abs(highs[i] - closes[i - 1]),
+        Math.abs(lows[i] - closes[i - 1])
+      );
+    }
+
+    if (closes.length <= period * 2) {
+      return { adx, plusDI, minusDI, adxr };
+    }
+
+    let sumTr = 0;
+    let sumPlus = 0;
+    let sumMinus = 0;
+    for (let i = 1; i <= period; i += 1) {
+      sumTr += tr[i];
+      sumPlus += plusDM[i];
+      sumMinus += minusDM[i];
+    }
+
+    let smoothedTr = sumTr;
+    let smoothedPlus = sumPlus;
+    let smoothedMinus = sumMinus;
+
+    for (let i = period; i < closes.length; i += 1) {
+      if (i > period) {
+        smoothedTr = smoothedTr - (smoothedTr / period) + tr[i];
+        smoothedPlus = smoothedPlus - (smoothedPlus / period) + plusDM[i];
+        smoothedMinus = smoothedMinus - (smoothedMinus / period) + minusDM[i];
+      }
+
+      if (smoothedTr === 0) continue;
+      plusDI[i] = (smoothedPlus / smoothedTr) * 100;
+      minusDI[i] = (smoothedMinus / smoothedTr) * 100;
+      const denom = plusDI[i] + minusDI[i];
+      dx[i] = denom === 0 ? null : (Math.abs(plusDI[i] - minusDI[i]) / denom) * 100;
+    }
+
+    let adxSeed = 0;
+    let seedCount = 0;
+    for (let i = period; i < period * 2; i += 1) {
+      if (dx[i] != null) {
+        adxSeed += dx[i];
+        seedCount += 1;
+      }
+    }
+
+    if (seedCount > 0) {
+      adx[period * 2 - 1] = adxSeed / seedCount;
+      for (let i = period * 2; i < closes.length; i += 1) {
+        if (dx[i] == null || adx[i - 1] == null) continue;
+        adx[i] = ((adx[i - 1] * (period - 1)) + dx[i]) / period;
+      }
+    }
+
+    for (let i = period; i < closes.length; i += 1) {
+      const prev = i - period;
+      if (adx[i] == null || adx[prev] == null) continue;
+      adxr[i] = (adx[i] + adx[prev]) / 2;
+    }
+
+    return { adx, plusDI, minusDI, adxr };
+  }
+
+  function computeParabolicSAR(highs, lows, step = 0.02, maxStep = 0.2) {
+    const sar = Array(highs.length).fill(null);
+    if (highs.length < 2 || lows.length < 2) {
+      return sar;
+    }
+
+    let isUptrend = highs[1] + lows[1] >= highs[0] + lows[0];
+    let af = step;
+    let ep = isUptrend ? Math.max(highs[0], highs[1]) : Math.min(lows[0], lows[1]);
+    sar[1] = isUptrend ? Math.min(lows[0], lows[1]) : Math.max(highs[0], highs[1]);
+
+    for (let i = 2; i < highs.length; i += 1) {
+      let nextSar = sar[i - 1] + af * (ep - sar[i - 1]);
+
+      if (isUptrend) {
+        nextSar = Math.min(nextSar, lows[i - 1], lows[i - 2]);
+        if (lows[i] < nextSar) {
+          isUptrend = false;
+          sar[i] = ep;
+          ep = lows[i];
+          af = step;
+          continue;
+        }
+
+        sar[i] = nextSar;
+        if (highs[i] > ep) {
+          ep = highs[i];
+          af = Math.min(maxStep, af + step);
+        }
+      } else {
+        nextSar = Math.max(nextSar, highs[i - 1], highs[i - 2]);
+        if (highs[i] > nextSar) {
+          isUptrend = true;
+          sar[i] = ep;
+          ep = highs[i];
+          af = step;
+          continue;
+        }
+
+        sar[i] = nextSar;
+        if (lows[i] < ep) {
+          ep = lows[i];
+          af = Math.min(maxStep, af + step);
+        }
+      }
+    }
+
+    return sar;
+  }
+
+  function destroyIndicatorChart() {
+    if (indicatorChart) {
+      indicatorChart.destroy();
+      indicatorChart = null;
+    }
+  }
+
+  function renderIndicatorChart(labels, indicatorData) {
+    destroyIndicatorChart();
+    const config = {
+      type: "line",
+      data: { labels, datasets: [] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 } } } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 8, maxRotation: 0, color: "#7b8490", font: { size: 10 } }, grid: { color: "#edf2f7" } },
+          y: { ticks: { color: "#7b8490", font: { size: 10 } }, grid: { color: "#edf2f7" } },
+        },
+      },
+    };
+
+    if (currIndicator === "rsi") {
+      config.data.datasets = [
+        { label: "RSI(14)", data: indicatorData.rsi, borderColor: "#2563eb", borderWidth: 1.3, pointRadius: 0, tension: 0.12 },
+        { label: "Overbought", data: labels.map(() => 70), borderColor: "#f59e0b", borderWidth: 1, borderDash: [4, 4], pointRadius: 0 },
+        { label: "Oversold", data: labels.map(() => 30), borderColor: "#10b981", borderWidth: 1, borderDash: [4, 4], pointRadius: 0 },
+      ];
+      config.options.scales.y.min = 0;
+      config.options.scales.y.max = 100;
+    } else if (currIndicator === "atr") {
+      config.data.datasets = [
+        { label: "ATR(14)", data: indicatorData.atr, borderColor: "#7c3aed", borderWidth: 1.4, pointRadius: 0, tension: 0.12 },
+      ];
+    } else if (currIndicator === "wilder_pack") {
+      config.data.datasets = [
+        { label: "ADX(14)",  data: indicatorData.adx,      borderColor: "#111827", borderWidth: 1.4, pointRadius: 0, tension: 0.12, yAxisID: "yDir" },
+        { label: "ADXR(14)", data: indicatorData.adxr,     borderColor: "#0ea5e9", borderWidth: 1.2, pointRadius: 0, tension: 0.12, yAxisID: "yDir" },
+        { label: "+DI",      data: indicatorData.plusDI,   borderColor: "#16a34a", borderWidth: 1.2, pointRadius: 0, tension: 0.12, yAxisID: "yDir" },
+        { label: "-DI",      data: indicatorData.minusDI,  borderColor: "#dc2626", borderWidth: 1.2, pointRadius: 0, tension: 0.12, yAxisID: "yDir" },
+        { label: "ATR(14)",  data: indicatorData.atr,      borderColor: "#7c3aed", borderWidth: 1.2, pointRadius: 0, tension: 0.12, yAxisID: "yAtr" },
+      ];
+      config.options.scales = {
+        x:    config.options.scales.x,
+        yDir: { type: "linear", position: "right", min: 0, max: 100, ticks: { color: "#7b8490", font: { size: 10 } }, grid: { color: "#edf2f7" } },
+        yAtr: { type: "linear", position: "left",  beginAtZero: true, grid: { display: false }, ticks: { color: "#7c3aed", font: { size: 10 } } },
+      };
+    } else {
+      config.data.datasets = [
+        { label: "ADX(14)", data: indicatorData.adx, borderColor: "#111827", borderWidth: 1.4, pointRadius: 0, tension: 0.12 },
+        { label: "+DI", data: indicatorData.plusDI, borderColor: "#16a34a", borderWidth: 1.2, pointRadius: 0, tension: 0.12 },
+        { label: "-DI", data: indicatorData.minusDI, borderColor: "#dc2626", borderWidth: 1.2, pointRadius: 0, tension: 0.12 },
+        { label: "ADXR(14)", data: indicatorData.adxr, borderColor: "#0ea5e9", borderWidth: 1.2, pointRadius: 0, tension: 0.12 },
+      ];
+      config.options.scales.y.min = 0;
+      config.options.scales.y.max = 100;
+    }
+
+    indicatorChart = new Chart(indicatorCtx, config);
+  }
+
+  function renderTechnicalCharts(series, ticker, period) {
+    if (chart) {
+      chart.destroy();
+      chart = null;
+    }
+
+    const labels = series.map((d) => d.date);
+    const closes = series.map((d) => d.close);
+    const highs = series.map((d) => d.high);
+    const lows = series.map((d) => d.low);
+
+    const bollinger = computeBollinger(closes, 20, 2);
+    const rsi = computeRSI(closes, 14);
+    const atr = computeATR(highs, lows, closes, 14);
+    const adxData = computeAdxDmi(highs, lows, closes, 14);
+
+    const allBBPrices = closes.concat(bollinger.upper, bollinger.lower).filter(v => v !== null && !isNaN(v));
+    const bbYMin = Math.min(...allBBPrices) * 0.99;
+    const bbYMax = Math.max(...allBBPrices) * 1.01;
+
+    chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          { label: ticker, data: closes, borderColor: "#111827", borderWidth: 1.5, pointRadius: 0, tension: 0.1 },
+          { label: "BB Upper", data: bollinger.upper, borderColor: "#2563eb", borderWidth: 1, pointRadius: 0, borderDash: [5, 4], tension: 0.05 },
+          { label: "BB Middle", data: bollinger.middle, borderColor: "#6b7280", borderWidth: 1, pointRadius: 0, borderDash: [3, 3], tension: 0.05 },
+          { label: "BB Lower", data: bollinger.lower, borderColor: "#2563eb", borderWidth: 1, pointRadius: 0, borderDash: [5, 4], tension: 0.05 },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 } } } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 10, maxRotation: 0, color: "#7b8490", font: { size: 11 } }, grid: { color: "#edf2f7" } },
+          y: { type: "logarithmic", position: "right", min: bbYMin, max: bbYMax, ticks: { color: "#7b8490", font: { size: 11 }, callback: (v) => p2(v) }, grid: { color: "#edf2f7" } },
+        },
+      },
+    });
+
+    destroyIndicatorChart();
+    elIndicatorPanel.classList.add("visible");
+    elIndicatorSelectWrap.style.display = "flex";
+
+    renderIndicatorChart(labels, {
+      rsi,
+      atr,
+      adx: adxData.adx,
+      plusDI: adxData.plusDI,
+      minusDI: adxData.minusDI,
+      adxr: adxData.adxr,
+    });
+
+    const chg = closes.at(-1) - closes[0];
+    const pct = (chg / closes[0]) * 100;
+    const c = cls(chg);
+    elSub.innerHTML = '<span class="' + c + '">' + p2(closes.at(-1)) + " " + pPct(pct) + '</span><span style="color:#7b8490"> (' + period + ")</span>";
+  }
+
+  async function loadChart(ticker, period) {
+    elLoader.style.display = "flex";
+    elTitle.textContent = ticker;
+    elSub.textContent = "Loading...";
+
+    try {
+      const preset = getCurrentChartPreset();
+      const endpoint = preset && preset.mode === "technical" ? "/history-ohlc/" : "/history-ohlc/";
+      const res = await fetch(API + endpoint + encodeURIComponent(ticker) + "?period=" + period);
+      if (!res.ok) {
+        let errMsg = "Data unavailable";
+        try {
+          const errBody = await res.json();
+          errMsg = errBody?.detail?.error?.message || errBody?.detail?.message || errBody?.detail || errMsg;
+          if (res.status === 504) errMsg = "Yahoo Finance timed out \u2014 " + errMsg;
+          else if (res.status === 502) errMsg = "Yahoo Finance error \u2014 " + errMsg;
+        } catch { /* ignore parse failure */ }
+        throw new Error(errMsg);
+      }
+
+      const payload = await res.json();
+      const series = payload.series || [];
+      if (series.length === 0) throw new Error("Empty chart series");
+
+      if (!preset || preset.mode === "candles" || preset.mode === "wilder") {
+        const isWilder = preset && preset.mode === "wilder";
+        setChartMode("candles");
+        ensureCandleChart();
+        if (chart) {
+          chart.destroy();
+          chart = null;
+        }
+
+        const candles = series.map((d) => ({
+          time: d.date,
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close,
+        }));
+
+        const sarValues = isWilder
+          ? computeParabolicSAR(
+              series.map((d) => d.high),
+              series.map((d) => d.low),
+              0.02,
+              0.2
+            )
+          : [];
+        const sarPoints = isWilder
+          ? series
+              .map((d, i) => ({ time: d.date, value: sarValues[i] }))
+              .filter((point) => point.value != null)
+          : [];
+
+        const volumeBars = series.map((d) => ({
+          time: d.date,
+          value: d.volume ?? 0,
+          color: d.close >= d.open ? "rgba(22, 163, 74, 0.45)" : "rgba(220, 38, 38, 0.45)",
+        }));
+        currentCandleData = candles;
+        candleSeries.setData(candles);
+        candleVolumeSeries.setData(volumeBars);
+        candleSarSeries.setData(sarPoints);
+        candleChart.resize(elCandle.clientWidth, elCandle.clientHeight);
+        updateCandleSpacing(candles);
+
+        if (isWilder) {
+          const labels = series.map((d) => d.date);
+          const closes = series.map((d) => d.close);
+          const highs = series.map((d) => d.high);
+          const lows = series.map((d) => d.low);
+          const atr = computeATR(highs, lows, closes, 14);
+          const adxData = computeAdxDmi(highs, lows, closes, 14);
+          currIndicator = "wilder_pack";
+          destroyIndicatorChart();
+          elIndicatorSelectWrap.style.display = "none";
+          elIndicatorPanel.classList.add("visible");
+          renderIndicatorChart(labels, {
+            atr,
+            adx: adxData.adx,
+            adxr: adxData.adxr,
+            plusDI: adxData.plusDI,
+            minusDI: adxData.minusDI,
+          });
+        } else {
+          destroyIndicatorChart();
+          elIndicatorSelectWrap.style.display = "none";
+          elIndicatorPanel.classList.remove("visible");
+        }
+
+        const prices = candles.map((d) => d.close);
+        const chg = prices.at(-1) - prices[0];
+        const pct = (chg / prices[0]) * 100;
+        const c = cls(chg);
+        elSub.innerHTML = '<span class="' + c + '">' + p2(prices.at(-1)) + " " + pPct(pct) + '</span><span style="color:#7b8490"> (' + period + ")</span>";
+      } else {
+        setChartMode("technical");
+        currentCandleData = [];
+        renderTechnicalCharts(series, ticker, period);
+      }
+    } catch (err) {
+      elSub.textContent = err.message || "Chart data unavailable";
+      destroyIndicatorChart();
+      elIndicatorPanel.classList.remove("visible");
+      elIndicatorSelectWrap.style.display = "none";
+    } finally {
+      elLoader.style.display = "none";
+    }
+  }
+
+  function setSelectedRow() {
+    document.querySelectorAll("#tbody tr[data-ticker]").forEach((row) => {
+      row.classList.toggle("selected", row.dataset.ticker === selectedTicker);
+    });
+  }
+
+  function readApiError(payload, fallback) {
+    return payload?.detail?.error?.message || payload?.detail?.message || payload?.detail || fallback;
+  }
+
+  async function loadWatchlist() {
+    const res = await fetch(API + "/watchlist");
+    if (!res.ok) throw new Error("Watchlist fetch failed");
+    const payload = await res.json();
+    watchlistSet = new Set(payload.watchlist || []);
+  }
+
+  async function loadBuildInfo() {
+    try {
+      const res = await fetch(API + "/build-info");
+      if (!res.ok) throw new Error("Build metadata unavailable");
+      const payload = await res.json();
+      const branch = payload.branch || "unknown";
+      const shortCommit = payload.short_commit || "unknown";
+      elBuildInfo.textContent = "Build: " + branch + " @ " + shortCommit;
+    } catch {
+      elBuildInfo.textContent = "Build: local";
+    }
+  }
+
+  async function updateWatchlist(ticker, shouldAdd) {
+    watchlistBusy.add(ticker);
+    renderTable();
+
+    try {
+      let res;
+      if (shouldAdd) {
+        res = await fetch(API + "/watchlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticker }),
+        });
+      } else {
+        res = await fetch(API + "/watchlist/" + encodeURIComponent(ticker), {
+          method: "DELETE",
+        });
+      }
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(readApiError(payload, "Watchlist update failed"));
+      }
+
+      watchlistSet = new Set(payload.watchlist || []);
+      elError.textContent = "";
+    } catch (err) {
+      elError.textContent = err.message || "Watchlist update failed";
+    } finally {
+      watchlistBusy.delete(ticker);
+      renderTable();
+    }
+  }
+
+  function showMarketChart() {
+    selectedTicker = "";
+    setSelectedRow();
+    currTicker = DEFAULT_MARKET_TICKER;
+    loadChart(currTicker, currPeriod);
+  }
+
+  async function loadIndexes() {
+    try {
+      const res = await fetch(API + "/indexes");
+      if (!res.ok) throw new Error("Index fetch failed");
+      const data = await res.json();
+
+      const items = Object.entries(data).map(([name, d]) => {
+        const chg = d.close - d.open;
+        const pct = (chg / d.open) * 100;
+        const ticker = IDX_TICKER[name] || name;
+
+        return '<div class="mkt-item" data-ticker="' + ticker + '">' +
+          '<span class="mkt-label">' + name.toUpperCase() + '</span>' +
+          '<span class="mkt-price">' + p2(d.close) + '</span>' +
+          '<span class="mkt-chg ' + cls(chg) + '">' + pPct(pct) + '</span>' +
+          '</div>';
+      });
+
+      elStrip.innerHTML = items.join("");
+
+    } catch (err) {
+      elStrip.innerHTML = '<div class="mkt-item"><span class="mkt-label" style="color:#dc2626">Index data unavailable</span></div>';
+    }
+  }
+
+  async function loadLists() {
+    try {
+      const res = await fetch(API + "/stock-lists");
+      if (!res.ok) throw new Error("Stock list fetch failed");
+
+      const payload = await res.json();
+      const lists = payload.stock_lists || [];
+
+      lists.forEach((name) => {
+        const o = document.createElement("option");
+        o.value = name;
+        o.textContent = name.replace(".stocks", "").replace(/[-_]/g, " ").toUpperCase();
+        elSelect.appendChild(o);
+      });
+
+      if (lists.includes("watchlist.stocks")) {
+        elSelect.value = "watchlist.stocks";
+      } else if (lists.length > 0) {
+        elSelect.value = lists[0];
+      }
+
+      elSelect.disabled = lists.length === 0;
+    } catch (err) {
+      elError.textContent = "Could not load stock lists.";
+    }
+  }
+
+  function renderTable() {
+    const preset = getCurrentPreset();
+    if (!preset) {
+      renderEmptyTable("No table presets configured.");
+      return;
+    }
+
+    const rows = [...stockData].sort((a, b) => {
+      const va = a[sortCol];
+      const vb = b[sortCol];
+
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+
+      if (typeof va === "string" || typeof vb === "string") {
+        const sa = String(va);
+        const sb = String(vb);
+        return sortAsc ? sa.localeCompare(sb) : sb.localeCompare(sa);
+      }
+
+      return sortAsc ? va - vb : vb - va;
+    });
+
+    if (rows.length === 0) {
+      renderEmptyTable("No rows returned for this screen.");
+      return;
+    }
+
+    elTbody.innerHTML = rows.map((s) => {
+      const cells = preset.columns.map((column) => {
+        const classes = [];
+        if (column.key === "ticker") {
+          classes.push("ticker");
+        }
+        if (column.key === "watch_toggle") {
+          classes.push("watch-col");
+        }
+        if (isNumericFormat(column.format)) {
+          classes.push("numeric");
+        }
+        if ((column.key === "chg" || column.key === "chgpct") && s[column.key] != null) {
+          classes.push(cls(s[column.key]));
+        }
+
+        return '<td class="' + classes.join(" ") + '">' + formatCellValue(column, s) + "</td>";
+      }).join("");
+
+      return '<tr data-ticker="' + s.ticker + '">' + cells + "</tr>";
+    }).join("");
+
+    elTbody.querySelectorAll("tr[data-ticker]").forEach((row) => {
+      row.addEventListener("click", () => {
+        selectedTicker = row.dataset.ticker;
+        setSelectedRow();
+        currTicker = selectedTicker;
+        loadChart(currTicker, currPeriod);
+      });
+    });
+
+    elTbody.querySelectorAll("input[data-watch-ticker]").forEach((toggle) => {
+      toggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+
+      toggle.addEventListener("change", (event) => {
+        const ticker = toggle.dataset.watchTicker;
+        const shouldAdd = event.target.checked;
+        updateWatchlist(ticker, shouldAdd);
+      });
+    });
+
+    updateSortHeaderState();
+
+    setSelectedRow();
+  }
+
+  function showProgress(done, total) {
+    elProgress.classList.add("visible");
+    elProgressFill.style.width = (total > 0 ? (done / total) * 100 : 0) + "%";
+    elProgressText.textContent = done + " / " + total;
+  }
+
+  function hideProgress() {
+    elProgress.classList.remove("visible");
+    elProgressFill.style.width = "0%";
+    elProgressText.textContent = "";
+  }
+
+  async function runScreen() {
+    if (!elSelect.value) {
+      return;
+    }
+
+    elSelect.disabled = true;
+    elStatus.textContent = "";
+    elError.textContent = "";
+    showProgress(0, 1);
+
+    return new Promise((resolve) => {
+      const url =
+        API +
+        "/screen/stream?stock_list=" +
+        encodeURIComponent(elSelect.value) +
+        "&period=1d";
+      const source = new EventSource(url);
+
+      source.onmessage = (e) => {
+        let msg;
+        try {
+          msg = JSON.parse(e.data);
+        } catch {
+          return;
+        }
+
+        if (msg.type === "progress") {
+          showProgress(msg.done, msg.total);
+        } else if (msg.type === "complete") {
+          source.close();
+          hideProgress();
+          stockData = (msg.stocks || []).map((s) => ({
+            ...s,
+            chg: s.close - s.open,
+            chgpct: ((s.close - s.open) / s.open) * 100,
+          }));
+          let statusText = msg.retrieved + " / " + msg.requested + " stocks";
+          if (msg.failed && msg.failed > 0) {
+            statusText += " (" + msg.failed + " failed \u2014 Yahoo Finance may be unavailable)";
+          }
+          elStatus.textContent = statusText;
+          renderTable();
+          elSelect.disabled = false;
+          resolve();
+        } else if (msg.type === "error") {
+          source.close();
+          hideProgress();
+          elError.textContent = msg.message || "Screen failed";
+          elSelect.disabled = false;
+          resolve();
+        }
+      };
+
+      source.onerror = () => {
+        source.close();
+        hideProgress();
+        elError.textContent = "Screen failed";
+        elSelect.disabled = false;
+        resolve();
+      };
+    });
+  }
+
+  elSelect.addEventListener("change", runScreen);
+  elPresetSelect.addEventListener("change", () => {
+    currTablePresetId = elPresetSelect.value;
+    ensureSortColumnForPreset();
+    renderTableHeader();
+    if (stockData.length > 0) {
+      renderTable();
+    } else {
+      renderEmptyTable("Select a list to load symbols.");
+    }
+  });
+
+  $("period-btns").addEventListener("click", (event) => {
+    const btn = event.target.closest(".period-btn");
+    if (!btn) return;
+
+    document.querySelectorAll("#period-btns .period-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    currPeriod = btn.dataset.p;
+    loadChart(currTicker, currPeriod);
+  });
+
+  elChartPresetSelect.addEventListener("change", () => {
+    currChartPresetId = elChartPresetSelect.value;
+    const selectedPreset = getCurrentChartPreset();
+    if (selectedPreset && selectedPreset.default_indicator) {
+      currIndicator = selectedPreset.default_indicator;
+      elIndicatorSelect.value = currIndicator;
+    }
+    loadChart(currTicker, currPeriod);
+  });
+
+  elIndicatorSelect.addEventListener("change", () => {
+    currIndicator = elIndicatorSelect.value;
+    const selectedPreset = getCurrentChartPreset();
+    if (selectedPreset && selectedPreset.mode === "technical") {
+      loadChart(currTicker, currPeriod);
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("#controls") || event.target.closest("#chart-panel") || event.target.closest("#market-strip")) {
+      return;
+    }
+
+    if (event.target.closest("#tbody tr[data-ticker]")) {
+      return;
+    }
+
+    if (selectedTicker || currTicker !== DEFAULT_MARKET_TICKER) {
+      showMarketChart();
+    }
+  });
+
+  async function init() {
+    try {
+      const res = await fetch(API + "/health");
+      if (res.ok) {
+        elBadge.textContent = "Online";
+        elBadge.style.color = "#16a34a";
+      } else {
+        elBadge.textContent = "Offline";
+        elBadge.style.color = "#dc2626";
+      }
+    } catch (err) {
+      elBadge.textContent = "Offline";
+      elBadge.style.color = "#dc2626";
+    }
+
+    await Promise.all([
+      loadIndexes(),
+      loadLists(),
+      loadWatchlist(),
+      loadBuildInfo(),
+      loadTablePresets(),
+      loadChartPresets(),
+    ]);
+    if (elSelect.value) {
+      await runScreen();
+    }
+    loadChart(currTicker, currPeriod);
+  }
+
+  let currView = "split";
+
+  function setView(view) {
+    currView = view;
+    const ws = document.getElementById("workspace");
+    ws.classList.remove("view-split", "view-table", "view-chart");
+    ws.classList.add("view-" + view);
+    document.querySelectorAll(".view-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.view === view);
+    });
+    // Give the DOM time to relayout before resizing the candle chart
+    requestAnimationFrame(() => {
+      if (candleChart) {
+        candleChart.resize(elCandle.clientWidth, elCandle.clientHeight);
+        updateCandleSpacing(currentCandleData);
+      }
+    });
+  }
+
+  document.querySelectorAll(".view-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setView(btn.dataset.view));
+  });
+
+  window.addEventListener("resize", () => {
+    if (candleChart) {
+      candleChart.resize(elCandle.clientWidth, elCandle.clientHeight);
+      updateCandleSpacing(currentCandleData);
+    }
+  });
+
+  init();
+</script>
+</body>
+</html>

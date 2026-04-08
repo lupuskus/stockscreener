@@ -1,110 +1,151 @@
 # FTSE Stock Screener
 
-A Python-based stock screener that fetches real-time OHLCV (Open, High, Low, Close, Volume) data for FTSE 100 and FTSE 250 stocks using Yahoo Finance data.
+A Python stock screener for UK markets with:
+- a command-line script
+- a FastAPI backend
+- a static browser UI served from `static/`
 
-## Features
+The app fetches OHLCV market data from Yahoo Finance for stock lists (`*.stocks`) and index snapshots for FTSE 100 (`^FTSE`) and FTSE 250 (`^FTMC`).
 
-- **Interactive Stock List Selection**: Choose between FTSE 100 or FTSE 250 stock lists
-- **Real-time Data**: Fetches the latest trading data from Yahoo Finance
-- **Comprehensive OHLCV Display**: Shows Open, High, Low, Close prices and trading volume
-- **Error Handling**: Gracefully handles unavailable tickers
-- **Clean Output**: Formatted table display for easy reading
+## Current Features
 
-## Installation
+- List and load stock list files automatically (`ftse100.stocks`, `ftse250.stocks`, `watchlist.stocks`)
+- Screen a selected list and return latest OHLCV data per ticker
+- Fetch market index snapshots (FTSE 100 and FTSE 250)
+- Fetch ticker close-price history for charting
+- FastAPI endpoints for UI and API integration
+- Static UI with list selection, ticker preview, result table, chart, and watchlist actions
+- Simple script `startstockserver` for local backend startup
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/lupuskus/stockscreener.git
-   cd stockscreener
-   ```
+## Project Structure
 
-2. **Create a virtual environment (recommended):**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+- `stockscreener.py`: command-line screener
+- `backend/app.py`: FastAPI app and API routes
+- `backend/service.py`: data fetching and stock list logic
+- `startstockserver`: helper script to start Uvicorn
+- `static/index.html`: static browser UI served by backend root route
+- `*.stocks`: stock universe files
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+## Requirements
+
+- Python 3.10+
+
+Python dependencies are listed in `requirements.txt`:
+- `yfinance>=0.2.0`
+- `pandas>=1.5.0`
+- `fastapi>=0.115.0`
+- `uvicorn>=0.30.0`
+
+Optional backend environment variables:
+- `STOCK_API_TIMEOUT_SECONDS` (default: `8.0`)
+- `STOCK_API_MAX_RETRIES` (default: `2`)
+- `STOCK_API_RETRY_BACKOFF_SECONDS` (default: `0.5`)
+- `STOCK_CACHE_REFRESH_SECONDS` (default: `900`)
+
+Latest `1d` stock and index data is cached locally in `.cache/intraday_quotes.json`. The backend reuses that cache for screen loads and refreshes it in the background every 15 minutes by default.
+
+Historical OHLC data up to yesterday is cached locally in `.cache/historical_prices.json`. That cache is reused for chart/history requests and for indicator calculations. It is refreshed lazily when needed on a new day, rather than on the 15-minute intraday schedule.
+
+## Setup
+
+1. Clone repository:
+
+```bash
+git clone https://github.com/lupuskus/stockscreener.git
+cd stockscreener
+```
+
+2. Create and activate virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+3. Install Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Usage
 
-Run the stock screener:
+### 1. CLI mode
+
 ```bash
 python stockscreener.py
 ```
 
-The program will:
-1. Display available stock list files alphabetically (FTSE 100, FTSE 250, and personal watchlist)
-2. Prompt you to select which list to screen
-3. **Fetch and display FTSE 100 and FTSE 250 index data for market sentiment comparison**
-4. Fetch and display the latest OHLCV data for all stocks in the selected list
+### 2. Backend API
 
-### Example Output
-```
-================================================================================
-Latest Trading Data (OHLCV) - ftse100_stocks.txt
-================================================================================
-Ticker       Open       High        Low      Close        Volume
-================================================================================
-AAL.L      2345.00    2370.00    2330.00    2355.00    2,145,678
-ABF.L       245.60     248.20     244.80     247.10    4,567,890
-...
-================================================================================
+Run with helper script:
 
-Total stocks retrieved: 98/100
+```bash
+./startstockserver
 ```
 
-## Stock Lists
+Or run directly:
 
-The program includes comprehensive stock lists:
+```bash
+uvicorn backend.app:app --reload
+```
 
-- **ftse100.stocks**: Contains all 100 FTSE 100 index constituents
-- **ftse250.stocks**: Contains 250+ FTSE 250 index constituents
-- **watchlist.stocks**: Personal watchlist with selected stocks (AZN.L, BGEO.L, MONY.L)
+The API is available at `http://127.0.0.1:8000`.
 
-All tickers use the `.L` suffix for London Stock Exchange listings.
+To tune Yahoo Finance request behavior:
 
-## Market Sentiment Comparison
+```bash
+export STOCK_API_TIMEOUT_SECONDS=8
+export STOCK_API_MAX_RETRIES=2
+export STOCK_API_RETRY_BACKOFF_SECONDS=0.5
+uvicorn backend.app:app --reload
+```
 
-The stock screener automatically fetches and displays FTSE 100 (^FTSE) and FTSE 250 (^FTMC) index data before showing individual stock data. This allows you to:
+### 3. Static browser UI
 
-- Compare individual stock performance against broader market trends
-- Assess whether stocks are outperforming or underperforming the market
-- Make more informed investment decisions based on market context
+Open the backend URL directly in your browser:
 
-## Requirements
+```text
+http://127.0.0.1:8000
+```
 
-- Python 3.7+
-- yfinance (Yahoo Finance API)
-- pandas (Data manipulation)
+## API Endpoints
 
-## Dependencies
+- `GET /` serves `static/index.html`
+- `GET /health`
+- `GET /stock-lists`
+- `GET /stock-lists/{filename}`
+- `GET /watchlist`
+- `POST /watchlist`
+- `DELETE /watchlist/{ticker}`
+- `GET /indexes`
+- `GET /history/{ticker}?period=1mo`
+- `GET /history-ohlc/{ticker}?period=1mo`
+- `POST /screen`
 
-- `yfinance>=0.2.0` - Yahoo Finance data API
-- `pandas>=1.5.0` - Data analysis and display
+Example screen request:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/screen" \
+  -H "Content-Type: application/json" \
+  -d '{"stock_list":"ftse100.stocks","period":"1d"}'
+```
 
 ## Data Source
 
-Stock data is sourced from Yahoo Finance via the yfinance library. Please note:
-- Data availability depends on Yahoo Finance's API
-- Some stocks may be temporarily unavailable
-- Historical data period is set to '1d' (latest trading day)
+Data is sourced from Yahoo Finance via `yfinance`.
 
-## Contributing
+- Availability depends on Yahoo Finance responses.
+- Some tickers may intermittently return no data.
 
-Feel free to contribute by:
-- Adding more stock indices
-- Improving error handling
-- Adding new features like technical indicators
-- Updating stock lists as indices change
+## Roadmap / TODO
 
-## License
+For active and planned work, see `TODO.md`.
 
-This project is open source. Feel free to use and modify as needed.
+## Version History and Plan
+
+For key past versions and planned future versions, see `VERSION.md`.
 
 ## Disclaimer
 
-This tool is for educational and informational purposes only. Not intended as financial advice. Always do your own research before making investment decisions.
+This project is for educational and informational use only, and is not financial advice.
