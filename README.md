@@ -40,6 +40,11 @@ Optional backend environment variables:
 - `STOCK_API_TIMEOUT_SECONDS` (default: `8.0`)
 - `STOCK_API_MAX_RETRIES` (default: `2`)
 - `STOCK_API_RETRY_BACKOFF_SECONDS` (default: `0.5`)
+- `STOCK_CACHE_REFRESH_SECONDS` (default: `900`)
+
+Latest `1d` stock and index data is cached locally in `.cache/intraday_quotes.json`. The backend reuses that cache for screen loads and refreshes it in the background every 15 minutes by default.
+
+Historical OHLC data up to yesterday is cached locally in `.cache/historical_prices.json`. That cache is reused for chart/history requests and for indicator calculations. It is refreshed lazily when needed on a new day, rather than on the 15-minute intraday schedule.
 
 ## Setup
 

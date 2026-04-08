@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, List
 
 import json
 import os
 import re
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,10 +32,22 @@ from backend.service import (
     remove_watchlist_ticker,
     screen_stock_list,
     screen_stock_list_stream,
+    start_intraday_cache_worker,
+    stop_intraday_cache_worker,
 )
 
 
 app = FastAPI(title="Stock Screener API", version="1.0.0")
+
+@app.on_event("startup")
+def startup_event() -> None:
+    start_intraday_cache_worker()
+
+
+@app.on_event("shutdown")
+def shutdown_event() -> None:
+    stop_intraday_cache_worker()
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,11 +58,177 @@ app.add_middleware(
 )
 
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
+_TABLE_PRESETS_PATH = Path(__file__).resolve().parent.parent / "table_presets.toml"
+_CHART_PRESETS_PATH = Path(__file__).resolve().parent.parent / "chart_presets.toml"
 _TICKER_RE = re.compile(r'^[\w.\-\^=]{1,20}$')
 _STOCK_LIST_RE = re.compile(r'^[A-Za-z0-9._\-]+\.stocks$')
 _ALLOWED_PERIODS = {
     "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"
 }
+
+
+def _default_table_presets() -> Dict[str, object]:
+    return {
+        "default_preset": "ohlcv",
+        "presets": [
+            {
+                "id": "ohlcv",
+                "label": "OHLC + Volume",
+                "columns": [
+                    {"key": "ticker", "label": "Ticker", "format": "text", "sortable": True},
+                    {"key": "watch_toggle", "label": "Watch", "format": "watch_toggle", "sortable": False},
+                    {"key": "close", "label": "Close", "format": "price", "sortable": True},
+                    {"key": "chg", "label": "Chg", "format": "price", "sortable": True},
+                    {"key": "chgpct", "label": "Chg %", "format": "percent", "sortable": True},
+                    {"key": "open", "label": "Open", "format": "price", "sortable": True},
+                    {"key": "high", "label": "High", "format": "price", "sortable": True},
+                    {"key": "low", "label": "Low", "format": "price", "sortable": True},
+                    {"key": "volume", "label": "Volume", "format": "volume", "sortable": True},
+                ],
+            }
+        ],
+    }
+
+
+def _normalize_table_presets(raw_payload: Dict[str, object]) -> Dict[str, object]:
+    presets = raw_payload.get("presets", []) if isinstance(raw_payload, dict) else []
+    normalized_presets: List[Dict[str, object]] = []
+
+    if isinstance(presets, list):
+        for preset in presets:
+            if not isinstance(preset, dict):
+                continue
+            preset_id = str(preset.get("id", "")).strip()
+            preset_label = str(preset.get("label", preset_id)).strip()
+            if not preset_id:
+                continue
+
+            columns_raw = preset.get("columns", [])
+            columns: List[Dict[str, object]] = []
+            if isinstance(columns_raw, list):
+                for column in columns_raw:
+                    if not isinstance(column, dict):
+                        continue
+                    key = str(column.get("key", "")).strip()
+                    label = str(column.get("label", key)).strip()
+                    if not key:
+                        continue
+                    columns.append(
+                        {
+                            "key": key,
+                            "label": label or key,
+                            "format": str(column.get("format", "text")).strip() or "text",
+                            "sortable": bool(column.get("sortable", True)),
+                        }
+                    )
+
+            if columns:
+                normalized_presets.append({"id": preset_id, "label": preset_label or preset_id, "columns": columns})
+
+    if not normalized_presets:
+        return _default_table_presets()
+
+    default_preset = str(raw_payload.get("default_preset", "")).strip() if isinstance(raw_payload, dict) else ""
+    available_ids = {preset["id"] for preset in normalized_presets}
+    if default_preset not in available_ids:
+        default_preset = normalized_presets[0]["id"]
+
+    return {
+        "default_preset": default_preset,
+        "presets": normalized_presets,
+    }
+
+
+def _load_table_presets() -> Dict[str, object]:
+    if not _TABLE_PRESETS_PATH.exists():
+        return _default_table_presets()
+
+    try:
+        with _TABLE_PRESETS_PATH.open("rb") as stream:
+            payload = tomllib.load(stream)
+        return _normalize_table_presets(payload)
+    except Exception:
+        return _default_table_presets()
+
+
+def _default_chart_presets() -> Dict[str, object]:
+    return {
+        "default_preset": "candles_volume",
+        "presets": [
+            {
+                "id": "candles_volume",
+                "label": "Candles + Volume",
+                "mode": "candles",
+                "default_indicator": "rsi",
+            },
+            {
+                "id": "technical_indicators",
+                "label": "Bollinger + Indicators",
+                "mode": "technical",
+                "default_indicator": "rsi",
+            },
+            {
+                "id": "welles_wilder",
+                "label": "Welles Wilder",
+                "mode": "wilder",
+                "default_indicator": "wilder_pack",
+            },
+        ],
+    }
+
+
+def _normalize_chart_presets(raw_payload: Dict[str, object]) -> Dict[str, object]:
+    presets = raw_payload.get("presets", []) if isinstance(raw_payload, dict) else []
+    normalized_presets: List[Dict[str, str]] = []
+
+    if isinstance(presets, list):
+        for preset in presets:
+            if not isinstance(preset, dict):
+                continue
+            preset_id = str(preset.get("id", "")).strip()
+            label = str(preset.get("label", preset_id)).strip()
+            mode = str(preset.get("mode", "candles")).strip().lower()
+            default_indicator = str(preset.get("default_indicator", "rsi")).strip().lower()
+            if not preset_id:
+                continue
+            if mode not in {"candles", "technical", "wilder"}:
+                mode = "candles"
+            if default_indicator not in {"rsi", "atr", "adx_dmi", "wilder_pack"}:
+                default_indicator = "rsi"
+
+            normalized_presets.append(
+                {
+                    "id": preset_id,
+                    "label": label or preset_id,
+                    "mode": mode,
+                    "default_indicator": default_indicator,
+                }
+            )
+
+    if not normalized_presets:
+        return _default_chart_presets()
+
+    default_preset = str(raw_payload.get("default_preset", "")).strip() if isinstance(raw_payload, dict) else ""
+    available_ids = {preset["id"] for preset in normalized_presets}
+    if default_preset not in available_ids:
+        default_preset = normalized_presets[0]["id"]
+
+    return {
+        "default_preset": default_preset,
+        "presets": normalized_presets,
+    }
+
+
+def _load_chart_presets() -> Dict[str, object]:
+    if not _CHART_PRESETS_PATH.exists():
+        return _default_chart_presets()
+
+    try:
+        with _CHART_PRESETS_PATH.open("rb") as stream:
+            payload = tomllib.load(stream)
+        return _normalize_chart_presets(payload)
+    except Exception:
+        return _default_chart_presets()
 
 
 def _bad_request_detail(*, code: str, message: str, field: str, value: str | None = None) -> Dict[str, object]:
@@ -150,6 +334,16 @@ def build_info() -> Dict[str, str]:
 @app.get("/stock-lists")
 def stock_lists() -> Dict[str, List[str]]:
     return {"stock_lists": list_stock_files()}
+
+
+@app.get("/table-presets")
+def table_presets() -> Dict[str, object]:
+    return _load_table_presets()
+
+
+@app.get("/chart-presets")
+def chart_presets() -> Dict[str, object]:
+    return _load_chart_presets()
 
 
 @app.get("/watchlist")

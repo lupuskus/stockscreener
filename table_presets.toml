@@ -1,0 +1,239 @@
+default_preset = "ohlcv"
+
+[[presets]]
+id = "ohlcv"
+label = "OHLC + Volume"
+
+[[presets.columns]]
+key = "ticker"
+label = "Ticker"
+format = "text"
+sortable = true
+
+[[presets.columns]]
+key = "watch_toggle"
+label = "Watch"
+format = "watch_toggle"
+sortable = false
+
+[[presets.columns]]
+key = "close"
+label = "Close"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "chg"
+label = "Chg"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "chgpct"
+label = "Chg %"
+format = "percent"
+sortable = true
+
+[[presets.columns]]
+key = "open"
+label = "Open"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "high"
+label = "High"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "low"
+label = "Low"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "volume"
+label = "Volume"
+format = "volume"
+sortable = true
+
+[[presets]]
+id = "technical_sma"
+label = "Technical (SMA)"
+
+[[presets.columns]]
+key = "ticker"
+label = "Ticker"
+format = "text"
+sortable = true
+
+[[presets.columns]]
+key = "watch_toggle"
+label = "Watch"
+format = "watch_toggle"
+sortable = false
+
+[[presets.columns]]
+key = "last_close"
+label = "Last Close"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "current_price"
+label = "Current Price"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "sma200"
+label = "SMA200"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "sma50"
+label = "SMA50"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "sma20"
+label = "SMA20"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "sma5"
+label = "SMA5"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "volume"
+label = "Volume"
+format = "volume"
+sortable = true
+
+[[presets]]
+id = "fundamentals"
+label = "Fundamentals"
+
+[[presets.columns]]
+key = "ticker"
+label = "Ticker"
+format = "text"
+sortable = true
+
+[[presets.columns]]
+key = "watch_toggle"
+label = "Watch"
+format = "watch_toggle"
+sortable = false
+
+[[presets.columns]]
+key = "current_price"
+label = "Price"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "market_cap"
+label = "Market Cap"
+format = "market_cap"
+sortable = true
+
+[[presets.columns]]
+key = "trailing_pe"
+label = "Trailing P/E"
+format = "ratio"
+sortable = true
+
+[[presets.columns]]
+key = "forward_pe"
+label = "Forward P/E"
+format = "ratio"
+sortable = true
+
+[[presets.columns]]
+key = "dividend_yield"
+label = "Dividend Yield"
+format = "yield_percent"
+sortable = true
+
+[[presets]]
+id = "wilder_new_concepts"
+label = "Wilder New Concepts"
+
+[[presets.columns]]
+key = "ticker"
+label = "Ticker"
+format = "text"
+sortable = true
+
+[[presets.columns]]
+key = "watch_toggle"
+label = "Watch"
+format = "watch_toggle"
+sortable = false
+
+[[presets.columns]]
+key = "close"
+label = "Close"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "chg"
+label = "Chg"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "chgpct"
+label = "Chg %"
+format = "percent"
+sortable = true
+
+[[presets.columns]]
+key = "atr"
+label = "ATR(14)"
+format = "price"
+sortable = true
+
+[[presets.columns]]
+key = "adx"
+label = "ADX(14)"
+format = "ratio"
+sortable = true
+
+[[presets.columns]]
+key = "plus_di"
+label = "+DI(14)"
+format = "ratio"
+sortable = true
+
+[[presets.columns]]
+key = "minus_di"
+label = "-DI(14)"
+format = "ratio"
+sortable = true
+
+[[presets.columns]]
+key = "adxr"
+label = "ADXR(14)"
+format = "ratio"
+sortable = true
+
+[[presets.columns]]
+key = "adxr_x_atr"
+label = "ADXRxATR"
+format = "ratio"
+sortable = true
+
+[[presets.columns]]
+key = "volume"
+label = "Volume"
+format = "volume"
+sortable = true

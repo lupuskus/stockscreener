@@ -31,7 +31,7 @@
 
     #app {
       display: grid;
-      grid-template-rows: auto auto auto auto 1fr auto;
+      grid-template-rows: auto auto auto auto 1fr;
       height: 100vh;
     }
 
@@ -49,8 +49,19 @@
       font-weight: 700;
     }
 
-    #backend-badge {
+    #status-cluster {
       margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #backend-badge {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    #build-info {
       font-size: 11px;
       color: var(--muted);
     }
@@ -188,6 +199,28 @@
       font-weight: 700;
       color: #3e4653;
       background: #fbfcfe;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    #table-preset-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    #table-preset-select {
+      border: 1px solid #cfd5df;
+      border-radius: 4px;
+      font-size: 11px;
+      padding: 3px 8px;
+      background: #fff;
+      color: #374151;
     }
 
     #table-wrap {
@@ -268,7 +301,7 @@
 
     #chart-panel {
       display: grid;
-      grid-template-rows: auto auto 1fr;
+      grid-template-rows: auto auto minmax(260px, 1fr) auto;
       min-height: 0;
     }
 
@@ -297,10 +330,35 @@
       gap: 6px;
     }
 
-    #chart-mode-btns {
+    #chart-preset-wrap {
       display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-right: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    #chart-preset-select,
+    #indicator-select {
+      border: 1px solid #cfd5df;
+      border-radius: 4px;
+      background: #fff;
+      color: #374151;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+    }
+
+    #indicator-select-wrap {
+      display: none;
+      align-items: center;
       gap: 6px;
       margin-right: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
     }
 
     .period-btn {
@@ -348,6 +406,22 @@
       background: rgba(255, 255, 255, 0.7);
     }
 
+    #indicator-panel {
+      display: none;
+      border-top: 1px solid var(--border);
+      padding: 10px;
+      height: 180px;
+    }
+
+    #indicator-panel.visible {
+      display: block;
+    }
+
+    #indicator-canvas {
+      width: 100%;
+      height: 160px;
+    }
+
     .view-btns {
       display: flex;
       gap: 4px;
@@ -386,15 +460,6 @@
       display: none;
     }
 
-    #build-info {
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 11px;
-      padding: 6px 12px;
-      text-align: right;
-    }
-
     @media (max-width: 1100px) {
       body { overflow: auto; }
       #app { height: auto; min-height: 100vh; }
@@ -410,7 +475,10 @@
 <div id="app">
   <header id="hdr">
     <div id="hdr-title">Stock Screener</div>
-    <div id="backend-badge">Checking...</div>
+    <div id="status-cluster">
+      <div id="backend-badge">Checking...</div>
+      <div id="build-info">Build: loading...</div>
+    </div>
   </header>
 
   <div id="market-strip">
@@ -436,25 +504,21 @@
 
   <main id="workspace">
     <section id="table-panel" class="panel">
-      <div class="panel-head">Symbols</div>
+      <div class="panel-head">
+        <span>Symbols</span>
+        <div id="table-preset-wrap">
+          <label for="table-preset-select">View</label>
+          <select id="table-preset-select" disabled></select>
+        </div>
+      </div>
       <div id="table-wrap">
         <table>
           <thead>
-            <tr>
-              <th data-col="ticker">Ticker</th>
-              <th class="watch-col" title="Watchlist">&#128065;</th>
-              <th class="numeric" data-col="close">Close</th>
-              <th class="numeric" data-col="chg">Chg</th>
-              <th class="numeric" data-col="chgpct">Chg %</th>
-              <th class="numeric" data-col="open">Open</th>
-              <th class="numeric" data-col="high">High</th>
-              <th class="numeric" data-col="low">Low</th>
-              <th class="numeric" data-col="volume">Volume</th>
-            </tr>
+            <tr id="thead-row"></tr>
           </thead>
           <tbody id="tbody">
             <tr>
-              <td colspan="9" style="padding: 24px; text-align: center; color: #7c8592;">
+              <td colspan="1" style="padding: 24px; text-align: center; color: #7c8592;">
                 Select a list to load symbols.
               </td>
             </tr>
@@ -470,9 +534,18 @@
           <div id="chart-title">FTSE 100</div>
           <div id="chart-subtitle">Loading...</div>
         </div>
-        <div id="chart-mode-btns">
-          <button class="period-btn" data-chart-mode="line">Line</button>
-          <button class="period-btn active" data-chart-mode="candles">Candles</button>
+        <div id="chart-preset-wrap">
+          <label for="chart-preset-select">Chart</label>
+          <select id="chart-preset-select" disabled></select>
+        </div>
+        <div id="indicator-select-wrap">
+          <label for="indicator-select">Indicator</label>
+          <select id="indicator-select">
+            <option value="rsi">RSI</option>
+            <option value="atr">ATR</option>
+            <option value="adx_dmi">ADX / DMI / ADXR</option>
+            <option value="wilder_pack">Wilder Pack</option>
+          </select>
         </div>
         <div id="period-btns">
           <button class="period-btn" data-p="5d">5D</button>
@@ -487,10 +560,12 @@
         <div id="candle-chart"></div>
         <div id="chart-loader">Loading chart...</div>
       </div>
+      <div id="indicator-panel">
+        <canvas id="indicator-canvas"></canvas>
+      </div>
     </section>
   </main>
 
-  <footer id="build-info">Build: loading...</footer>
 </div>
 
 <script>
@@ -508,6 +583,14 @@
   };
   const pPct = (v) => (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
   const cls = (v) => (v > 0 ? "up" : v < 0 ? "dn" : "flat");
+  const pRatio = (v) => Number(v).toFixed(2);
+  const pYieldPct = (v) => Number(v * 100).toFixed(2) + "%";
+  const pMarketCap = (v) => {
+    if (v >= 1e12) return (v / 1e12).toFixed(2) + "T";
+    if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
+    if (v >= 1e6) return (v / 1e6).toFixed(2) + "M";
+    return pVol(v);
+  };
 
   const $ = (id) => document.getElementById(id);
   const elBadge = $("backend-badge");
@@ -518,11 +601,18 @@
   const elProgress = $("screen-progress");
   const elProgressFill = $("screen-progress-fill");
   const elProgressText = $("screen-progress-text");
+  const elTheadRow = $("thead-row");
   const elTbody = $("tbody");
+  const elPresetSelect = $("table-preset-select");
   const elTitle = $("chart-title");
   const elSub = $("chart-subtitle");
   const elLoader = $("chart-loader");
   const elCandle = $("candle-chart");
+  const elIndicatorPanel = $("indicator-panel");
+  const indicatorCtx = $("indicator-canvas").getContext("2d");
+  const elChartPresetSelect = $("chart-preset-select");
+  const elIndicatorSelectWrap = $("indicator-select-wrap");
+  const elIndicatorSelect = $("indicator-select");
   const elBuildInfo = $("build-info");
 
   const DEFAULT_MARKET_TICKER = "^FTSE";
@@ -531,30 +621,254 @@
   let candleChart = null;
   let candleSeries = null;
   let candleVolumeSeries = null;
+  let candleSarSeries = null;
+  let indicatorChart = null;
   let currentCandleData = [];
-  let currChartMode = "candles";
+  let chartPresets = [];
+  let currChartPresetId = "";
+  let currIndicator = "rsi";
   let currTicker = DEFAULT_MARKET_TICKER;
   let currPeriod = "1mo";
   let sortCol = "ticker";
   let sortAsc = true;
   let stockData = [];
   let selectedTicker = "";
+  let tablePresets = [];
+  let currTablePresetId = "";
   let watchlistSet = new Set();
   const watchlistBusy = new Set();
 
   const IDX_TICKER = { ftse100: "^FTSE", ftse250: "^FTMC" };
   const ctx = $("the-chart").getContext("2d");
 
+  function fallbackTablePresets() {
+    return {
+      default_preset: "ohlcv",
+      presets: [
+        {
+          id: "ohlcv",
+          label: "OHLC + Volume",
+          columns: [
+            { key: "ticker", label: "Ticker", format: "text", sortable: true },
+            { key: "watch_toggle", label: "Watch", format: "watch_toggle", sortable: false },
+            { key: "close", label: "Close", format: "price", sortable: true },
+            { key: "chg", label: "Chg", format: "price", sortable: true },
+            { key: "chgpct", label: "Chg %", format: "percent", sortable: true },
+            { key: "open", label: "Open", format: "price", sortable: true },
+            { key: "high", label: "High", format: "price", sortable: true },
+            { key: "low", label: "Low", format: "price", sortable: true },
+            { key: "volume", label: "Volume", format: "volume", sortable: true },
+          ],
+        },
+      ],
+    };
+  }
+
+  function getCurrentPreset() {
+    return tablePresets.find((preset) => preset.id === currTablePresetId) || tablePresets[0] || null;
+  }
+
+  function ensureSortColumnForPreset() {
+    const preset = getCurrentPreset();
+    if (!preset) {
+      sortCol = "ticker";
+      sortAsc = true;
+      return;
+    }
+
+    const sortableColumns = (preset.columns || []).filter((column) => column.sortable);
+    const hasCurrentSort = sortableColumns.some((column) => column.key === sortCol);
+    if (!hasCurrentSort) {
+      sortCol = sortableColumns.length > 0 ? sortableColumns[0].key : "ticker";
+      sortAsc = true;
+    }
+  }
+
+  function isNumericFormat(format) {
+    return ["price", "percent", "volume", "market_cap", "ratio", "yield_percent"].includes(format);
+  }
+
+  function renderEmptyTable(message) {
+    const preset = getCurrentPreset();
+    const colspan = Math.max((preset?.columns || []).length, 1);
+    elTbody.innerHTML = '<tr><td colspan="' + colspan + '" style="padding: 24px; text-align: center; color: #7c8592;">' + message + '</td></tr>';
+  }
+
+  function updateSortHeaderState() {
+    document.querySelectorAll("thead th[data-col]").forEach((th) => {
+      th.classList.remove("sorted-asc", "sorted-desc");
+      if (th.dataset.col === sortCol) {
+        th.classList.add(sortAsc ? "sorted-asc" : "sorted-desc");
+      }
+    });
+  }
+
+  function renderTableHeader() {
+    const preset = getCurrentPreset();
+    if (!preset) {
+      return;
+    }
+
+    elTheadRow.innerHTML = "";
+    preset.columns.forEach((column) => {
+      const th = document.createElement("th");
+      th.textContent = column.label;
+
+      if (column.key === "watch_toggle") {
+        th.classList.add("watch-col");
+        th.title = "Watchlist";
+      } else if (isNumericFormat(column.format)) {
+        th.classList.add("numeric");
+      }
+
+      if (column.sortable) {
+        th.dataset.col = column.key;
+        th.addEventListener("click", () => {
+          if (sortCol === column.key) {
+            sortAsc = !sortAsc;
+          } else {
+            sortCol = column.key;
+            sortAsc = true;
+          }
+          if (stockData.length > 0) {
+            renderTable();
+          }
+        });
+      }
+
+      elTheadRow.appendChild(th);
+    });
+
+    updateSortHeaderState();
+  }
+
+  function formatCellValue(column, stock) {
+    if (column.key === "watch_toggle") {
+      const inWatchlist = watchlistSet.has(stock.ticker);
+      const busy = watchlistBusy.has(stock.ticker);
+      return '<input class="watch-toggle" type="checkbox" data-watch-ticker="' + stock.ticker + '"' +
+        (inWatchlist ? " checked" : "") +
+        (busy ? " disabled" : "") +
+        ' aria-label="Toggle watchlist for ' + stock.ticker + '">';
+    }
+
+    const value = stock[column.key];
+    if (value == null || Number.isNaN(value)) {
+      return "--";
+    }
+
+    switch (column.format) {
+      case "price":
+        return p2(value);
+      case "percent":
+        return pPct(value);
+      case "volume":
+        return pVol(value);
+      case "market_cap":
+        return pMarketCap(value);
+      case "ratio":
+        return pRatio(value);
+      case "yield_percent":
+        return pYieldPct(value);
+      default:
+        return String(value);
+    }
+  }
+
+  async function loadTablePresets() {
+    let payload = fallbackTablePresets();
+    try {
+      const res = await fetch(API + "/table-presets");
+      if (res.ok) {
+        payload = await res.json();
+      }
+    } catch {
+      payload = fallbackTablePresets();
+    }
+
+    tablePresets = Array.isArray(payload.presets) && payload.presets.length > 0
+      ? payload.presets
+      : fallbackTablePresets().presets;
+
+    const availableIds = new Set(tablePresets.map((preset) => preset.id));
+    currTablePresetId = availableIds.has(payload.default_preset)
+      ? payload.default_preset
+      : tablePresets[0].id;
+
+    elPresetSelect.innerHTML = "";
+    tablePresets.forEach((preset) => {
+      const option = document.createElement("option");
+      option.value = preset.id;
+      option.textContent = preset.label;
+      elPresetSelect.appendChild(option);
+    });
+
+    elPresetSelect.value = currTablePresetId;
+    elPresetSelect.disabled = false;
+    ensureSortColumnForPreset();
+    renderTableHeader();
+    renderEmptyTable("Select a list to load symbols.");
+  }
+
+  async function loadChartPresets() {
+    let payload = fallbackChartPresets();
+    try {
+      const res = await fetch(API + "/chart-presets");
+      if (res.ok) {
+        payload = await res.json();
+      }
+    } catch {
+      payload = fallbackChartPresets();
+    }
+
+    chartPresets = Array.isArray(payload.presets) && payload.presets.length > 0
+      ? payload.presets
+      : fallbackChartPresets().presets;
+
+    const availableIds = new Set(chartPresets.map((preset) => preset.id));
+    currChartPresetId = availableIds.has(payload.default_preset)
+      ? payload.default_preset
+      : chartPresets[0].id;
+
+    elChartPresetSelect.innerHTML = "";
+    chartPresets.forEach((preset) => {
+      const option = document.createElement("option");
+      option.value = preset.id;
+      option.textContent = preset.label;
+      elChartPresetSelect.appendChild(option);
+    });
+    elChartPresetSelect.value = currChartPresetId;
+    elChartPresetSelect.disabled = false;
+
+    const selectedPreset = getCurrentChartPreset();
+    currIndicator = selectedPreset?.default_indicator || "rsi";
+    elIndicatorSelect.value = currIndicator;
+  }
+
   function setChartMode(mode) {
-    currChartMode = mode;
     const lineCanvas = $("the-chart");
-    if (mode === "candles") {
-      lineCanvas.style.display = "none";
-      elCandle.style.display = "block";
-    } else {
+    if (mode === "technical") {
       elCandle.style.display = "none";
       lineCanvas.style.display = "block";
+    } else {
+      lineCanvas.style.display = "none";
+      elCandle.style.display = "block";
     }
+  }
+
+  function fallbackChartPresets() {
+    return {
+      default_preset: "candles_volume",
+      presets: [
+        { id: "candles_volume", label: "Candles + Volume", mode: "candles", default_indicator: "rsi" },
+        { id: "technical_indicators", label: "Bollinger + Indicators", mode: "technical", default_indicator: "rsi" },
+        { id: "welles_wilder", label: "Welles Wilder", mode: "wilder", default_indicator: "wilder_pack" },
+      ],
+    };
+  }
+
+  function getCurrentChartPreset() {
+    return chartPresets.find((preset) => preset.id === currChartPresetId) || chartPresets[0] || null;
   }
 
   function ensureCandleChart() {
@@ -577,6 +891,7 @@
       },
       rightPriceScale: {
         borderColor: "#e1e4ea",
+        mode: 1,
       },
       leftPriceScale: {
         visible: true,
@@ -606,6 +921,14 @@
       priceFormat: { type: "volume" },
       priceScaleId: "left",
       lastValueVisible: true,
+    });
+
+    candleSarSeries = candleChart.addLineSeries({
+      color: "#f59e0b",
+      lineWidth: 1,
+      crosshairMarkerVisible: false,
+      lastValueVisible: false,
+      priceLineVisible: false,
     });
   }
 
@@ -689,6 +1012,7 @@
             grid: { color: "#edf2f7" },
           },
           price: {
+            type: "logarithmic",
             position: "right",
             ticks: { color: "#7b8490", font: { size: 11 }, callback: (v) => p2(v) },
             grid: { color: "#edf2f7" },
@@ -710,23 +1034,375 @@
     });
   }
 
+  function computeBollinger(closes, period = 20, multiplier = 2) {
+    const middle = Array(closes.length).fill(null);
+    const upper = Array(closes.length).fill(null);
+    const lower = Array(closes.length).fill(null);
+
+    for (let i = period - 1; i < closes.length; i += 1) {
+      const window = closes.slice(i - period + 1, i + 1);
+      const mean = window.reduce((sum, v) => sum + v, 0) / period;
+      const variance = window.reduce((sum, v) => sum + (v - mean) ** 2, 0) / period;
+      const stddev = Math.sqrt(variance);
+      middle[i] = mean;
+      upper[i] = mean + multiplier * stddev;
+      lower[i] = mean - multiplier * stddev;
+    }
+
+    return { middle, upper, lower };
+  }
+
+  function computeRSI(closes, period = 14) {
+    const rsi = Array(closes.length).fill(null);
+    if (closes.length <= period) {
+      return rsi;
+    }
+
+    let gains = 0;
+    let losses = 0;
+    for (let i = 1; i <= period; i += 1) {
+      const delta = closes[i] - closes[i - 1];
+      if (delta >= 0) gains += delta;
+      else losses += Math.abs(delta);
+    }
+
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+    rsi[period] = avgLoss === 0 ? 100 : 100 - (100 / (1 + avgGain / avgLoss));
+
+    for (let i = period + 1; i < closes.length; i += 1) {
+      const delta = closes[i] - closes[i - 1];
+      const gain = delta > 0 ? delta : 0;
+      const loss = delta < 0 ? Math.abs(delta) : 0;
+      avgGain = ((avgGain * (period - 1)) + gain) / period;
+      avgLoss = ((avgLoss * (period - 1)) + loss) / period;
+      rsi[i] = avgLoss === 0 ? 100 : 100 - (100 / (1 + avgGain / avgLoss));
+    }
+
+    return rsi;
+  }
+
+  function computeATR(highs, lows, closes, period = 14) {
+    const tr = Array(closes.length).fill(null);
+    const atr = Array(closes.length).fill(null);
+
+    for (let i = 0; i < closes.length; i += 1) {
+      if (i === 0) {
+        tr[i] = highs[i] - lows[i];
+      } else {
+        tr[i] = Math.max(
+          highs[i] - lows[i],
+          Math.abs(highs[i] - closes[i - 1]),
+          Math.abs(lows[i] - closes[i - 1])
+        );
+      }
+    }
+
+    if (closes.length <= period) {
+      return atr;
+    }
+
+    let firstAtr = 0;
+    for (let i = 1; i <= period; i += 1) {
+      firstAtr += tr[i] ?? 0;
+    }
+    atr[period] = firstAtr / period;
+
+    for (let i = period + 1; i < closes.length; i += 1) {
+      atr[i] = ((atr[i - 1] * (period - 1)) + tr[i]) / period;
+    }
+
+    return atr;
+  }
+
+  function computeAdxDmi(highs, lows, closes, period = 14) {
+    const plusDM = Array(closes.length).fill(0);
+    const minusDM = Array(closes.length).fill(0);
+    const tr = Array(closes.length).fill(0);
+    const plusDI = Array(closes.length).fill(null);
+    const minusDI = Array(closes.length).fill(null);
+    const dx = Array(closes.length).fill(null);
+    const adx = Array(closes.length).fill(null);
+    const adxr = Array(closes.length).fill(null);
+
+    for (let i = 1; i < closes.length; i += 1) {
+      const upMove = highs[i] - highs[i - 1];
+      const downMove = lows[i - 1] - lows[i];
+      plusDM[i] = (upMove > downMove && upMove > 0) ? upMove : 0;
+      minusDM[i] = (downMove > upMove && downMove > 0) ? downMove : 0;
+
+      tr[i] = Math.max(
+        highs[i] - lows[i],
+        Math.abs(highs[i] - closes[i - 1]),
+        Math.abs(lows[i] - closes[i - 1])
+      );
+    }
+
+    if (closes.length <= period * 2) {
+      return { adx, plusDI, minusDI, adxr };
+    }
+
+    let sumTr = 0;
+    let sumPlus = 0;
+    let sumMinus = 0;
+    for (let i = 1; i <= period; i += 1) {
+      sumTr += tr[i];
+      sumPlus += plusDM[i];
+      sumMinus += minusDM[i];
+    }
+
+    let smoothedTr = sumTr;
+    let smoothedPlus = sumPlus;
+    let smoothedMinus = sumMinus;
+
+    for (let i = period; i < closes.length; i += 1) {
+      if (i > period) {
+        smoothedTr = smoothedTr - (smoothedTr / period) + tr[i];
+        smoothedPlus = smoothedPlus - (smoothedPlus / period) + plusDM[i];
+        smoothedMinus = smoothedMinus - (smoothedMinus / period) + minusDM[i];
+      }
+
+      if (smoothedTr === 0) continue;
+      plusDI[i] = (smoothedPlus / smoothedTr) * 100;
+      minusDI[i] = (smoothedMinus / smoothedTr) * 100;
+      const denom = plusDI[i] + minusDI[i];
+      dx[i] = denom === 0 ? null : (Math.abs(plusDI[i] - minusDI[i]) / denom) * 100;
+    }
+
+    let adxSeed = 0;
+    let seedCount = 0;
+    for (let i = period; i < period * 2; i += 1) {
+      if (dx[i] != null) {
+        adxSeed += dx[i];
+        seedCount += 1;
+      }
+    }
+
+    if (seedCount > 0) {
+      adx[period * 2 - 1] = adxSeed / seedCount;
+      for (let i = period * 2; i < closes.length; i += 1) {
+        if (dx[i] == null || adx[i - 1] == null) continue;
+        adx[i] = ((adx[i - 1] * (period - 1)) + dx[i]) / period;
+      }
+    }
+
+    for (let i = period; i < closes.length; i += 1) {
+      const prev = i - period;
+      if (adx[i] == null || adx[prev] == null) continue;
+      adxr[i] = (adx[i] + adx[prev]) / 2;
+    }
+
+    return { adx, plusDI, minusDI, adxr };
+  }
+
+  function computeParabolicSAR(highs, lows, step = 0.02, maxStep = 0.2) {
+    const sar = Array(highs.length).fill(null);
+    if (highs.length < 2 || lows.length < 2) {
+      return sar;
+    }
+
+    let isUptrend = highs[1] + lows[1] >= highs[0] + lows[0];
+    let af = step;
+    let ep = isUptrend ? Math.max(highs[0], highs[1]) : Math.min(lows[0], lows[1]);
+    sar[1] = isUptrend ? Math.min(lows[0], lows[1]) : Math.max(highs[0], highs[1]);
+
+    for (let i = 2; i < highs.length; i += 1) {
+      let nextSar = sar[i - 1] + af * (ep - sar[i - 1]);
+
+      if (isUptrend) {
+        nextSar = Math.min(nextSar, lows[i - 1], lows[i - 2]);
+        if (lows[i] < nextSar) {
+          isUptrend = false;
+          sar[i] = ep;
+          ep = lows[i];
+          af = step;
+          continue;
+        }
+
+        sar[i] = nextSar;
+        if (highs[i] > ep) {
+          ep = highs[i];
+          af = Math.min(maxStep, af + step);
+        }
+      } else {
+        nextSar = Math.max(nextSar, highs[i - 1], highs[i - 2]);
+        if (highs[i] > nextSar) {
+          isUptrend = true;
+          sar[i] = ep;
+          ep = highs[i];
+          af = step;
+          continue;
+        }
+
+        sar[i] = nextSar;
+        if (lows[i] < ep) {
+          ep = lows[i];
+          af = Math.min(maxStep, af + step);
+        }
+      }
+    }
+
+    return sar;
+  }
+
+  function destroyIndicatorChart() {
+    if (indicatorChart) {
+      indicatorChart.destroy();
+      indicatorChart = null;
+    }
+  }
+
+  function renderIndicatorChart(labels, indicatorData) {
+    destroyIndicatorChart();
+    const config = {
+      type: "line",
+      data: { labels, datasets: [] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 } } } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 8, maxRotation: 0, color: "#7b8490", font: { size: 10 } }, grid: { color: "#edf2f7" } },
+          y: { ticks: { color: "#7b8490", font: { size: 10 } }, grid: { color: "#edf2f7" } },
+        },
+      },
+    };
+
+    if (currIndicator === "rsi") {
+      config.data.datasets = [
+        { label: "RSI(14)", data: indicatorData.rsi, borderColor: "#2563eb", borderWidth: 1.3, pointRadius: 0, tension: 0.12 },
+        { label: "Overbought", data: labels.map(() => 70), borderColor: "#f59e0b", borderWidth: 1, borderDash: [4, 4], pointRadius: 0 },
+        { label: "Oversold", data: labels.map(() => 30), borderColor: "#10b981", borderWidth: 1, borderDash: [4, 4], pointRadius: 0 },
+      ];
+      config.options.scales.y.min = 0;
+      config.options.scales.y.max = 100;
+    } else if (currIndicator === "atr") {
+      config.data.datasets = [
+        { label: "ATR(14)", data: indicatorData.atr, borderColor: "#7c3aed", borderWidth: 1.4, pointRadius: 0, tension: 0.12 },
+      ];
+    } else if (currIndicator === "wilder_pack") {
+      config.data.datasets = [
+        { label: "ADX(14)",  data: indicatorData.adx,      borderColor: "#111827", borderWidth: 1.4, pointRadius: 0, tension: 0.12, yAxisID: "yDir" },
+        { label: "ADXR(14)", data: indicatorData.adxr,     borderColor: "#0ea5e9", borderWidth: 1.2, pointRadius: 0, tension: 0.12, yAxisID: "yDir" },
+        { label: "+DI",      data: indicatorData.plusDI,   borderColor: "#16a34a", borderWidth: 1.2, pointRadius: 0, tension: 0.12, yAxisID: "yDir" },
+        { label: "-DI",      data: indicatorData.minusDI,  borderColor: "#dc2626", borderWidth: 1.2, pointRadius: 0, tension: 0.12, yAxisID: "yDir" },
+        { label: "ATR(14)",  data: indicatorData.atr,      borderColor: "#7c3aed", borderWidth: 1.2, pointRadius: 0, tension: 0.12, yAxisID: "yAtr" },
+      ];
+      config.options.scales = {
+        x:    config.options.scales.x,
+        yDir: { type: "linear", position: "right", min: 0, max: 100, ticks: { color: "#7b8490", font: { size: 10 } }, grid: { color: "#edf2f7" } },
+        yAtr: { type: "linear", position: "left",  beginAtZero: true, grid: { display: false }, ticks: { color: "#7c3aed", font: { size: 10 } } },
+      };
+    } else {
+      config.data.datasets = [
+        { label: "ADX(14)", data: indicatorData.adx, borderColor: "#111827", borderWidth: 1.4, pointRadius: 0, tension: 0.12 },
+        { label: "+DI", data: indicatorData.plusDI, borderColor: "#16a34a", borderWidth: 1.2, pointRadius: 0, tension: 0.12 },
+        { label: "-DI", data: indicatorData.minusDI, borderColor: "#dc2626", borderWidth: 1.2, pointRadius: 0, tension: 0.12 },
+        { label: "ADXR(14)", data: indicatorData.adxr, borderColor: "#0ea5e9", borderWidth: 1.2, pointRadius: 0, tension: 0.12 },
+      ];
+      config.options.scales.y.min = 0;
+      config.options.scales.y.max = 100;
+    }
+
+    indicatorChart = new Chart(indicatorCtx, config);
+  }
+
+  function renderTechnicalCharts(series, ticker, period) {
+    if (chart) {
+      chart.destroy();
+      chart = null;
+    }
+
+    const labels = series.map((d) => d.date);
+    const closes = series.map((d) => d.close);
+    const highs = series.map((d) => d.high);
+    const lows = series.map((d) => d.low);
+
+    const bollinger = computeBollinger(closes, 20, 2);
+    const rsi = computeRSI(closes, 14);
+    const atr = computeATR(highs, lows, closes, 14);
+    const adxData = computeAdxDmi(highs, lows, closes, 14);
+
+    const allBBPrices = closes.concat(bollinger.upper, bollinger.lower).filter(v => v !== null && !isNaN(v));
+    const bbYMin = Math.min(...allBBPrices) * 0.99;
+    const bbYMax = Math.max(...allBBPrices) * 1.01;
+
+    chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          { label: ticker, data: closes, borderColor: "#111827", borderWidth: 1.5, pointRadius: 0, tension: 0.1 },
+          { label: "BB Upper", data: bollinger.upper, borderColor: "#2563eb", borderWidth: 1, pointRadius: 0, borderDash: [5, 4], tension: 0.05 },
+          { label: "BB Middle", data: bollinger.middle, borderColor: "#6b7280", borderWidth: 1, pointRadius: 0, borderDash: [3, 3], tension: 0.05 },
+          { label: "BB Lower", data: bollinger.lower, borderColor: "#2563eb", borderWidth: 1, pointRadius: 0, borderDash: [5, 4], tension: 0.05 },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 } } } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 10, maxRotation: 0, color: "#7b8490", font: { size: 11 } }, grid: { color: "#edf2f7" } },
+          y: { type: "logarithmic", position: "right", min: bbYMin, max: bbYMax, ticks: { color: "#7b8490", font: { size: 11 }, callback: (v) => p2(v) }, grid: { color: "#edf2f7" } },
+        },
+      },
+    });
+
+    destroyIndicatorChart();
+    elIndicatorPanel.classList.add("visible");
+    elIndicatorSelectWrap.style.display = "flex";
+
+    renderIndicatorChart(labels, {
+      rsi,
+      atr,
+      adx: adxData.adx,
+      plusDI: adxData.plusDI,
+      minusDI: adxData.minusDI,
+      adxr: adxData.adxr,
+    });
+
+    const chg = closes.at(-1) - closes[0];
+    const pct = (chg / closes[0]) * 100;
+    const c = cls(chg);
+    elSub.innerHTML = '<span class="' + c + '">' + p2(closes.at(-1)) + " " + pPct(pct) + '</span><span style="color:#7b8490"> (' + period + ")</span>";
+  }
+
   async function loadChart(ticker, period) {
     elLoader.style.display = "flex";
     elTitle.textContent = ticker;
     elSub.textContent = "Loading...";
 
     try {
-      const endpoint = currChartMode === "candles" ? "/history-ohlc/" : "/history/";
+      const preset = getCurrentChartPreset();
+      const endpoint = preset && preset.mode === "technical" ? "/history-ohlc/" : "/history-ohlc/";
       const res = await fetch(API + endpoint + encodeURIComponent(ticker) + "?period=" + period);
-      if (!res.ok) throw new Error("No chart data");
+      if (!res.ok) {
+        let errMsg = "Data unavailable";
+        try {
+          const errBody = await res.json();
+          errMsg = errBody?.detail?.error?.message || errBody?.detail?.message || errBody?.detail || errMsg;
+          if (res.status === 504) errMsg = "Yahoo Finance timed out \u2014 " + errMsg;
+          else if (res.status === 502) errMsg = "Yahoo Finance error \u2014 " + errMsg;
+        } catch { /* ignore parse failure */ }
+        throw new Error(errMsg);
+      }
 
       const payload = await res.json();
       const series = payload.series || [];
       if (series.length === 0) throw new Error("Empty chart series");
 
-      let prices;
-      if (currChartMode === "candles") {
+      if (!preset || preset.mode === "candles" || preset.mode === "wilder") {
+        const isWilder = preset && preset.mode === "wilder";
+        setChartMode("candles");
         ensureCandleChart();
+        if (chart) {
+          chart.destroy();
+          chart = null;
+        }
+
         const candles = series.map((d) => ({
           time: d.date,
           open: d.open,
@@ -734,6 +1410,21 @@
           low: d.low,
           close: d.close,
         }));
+
+        const sarValues = isWilder
+          ? computeParabolicSAR(
+              series.map((d) => d.high),
+              series.map((d) => d.low),
+              0.02,
+              0.2
+            )
+          : [];
+        const sarPoints = isWilder
+          ? series
+              .map((d, i) => ({ time: d.date, value: sarValues[i] }))
+              .filter((point) => point.value != null)
+          : [];
+
         const volumeBars = series.map((d) => ({
           time: d.date,
           value: d.volume ?? 0,
@@ -742,26 +1433,49 @@
         currentCandleData = candles;
         candleSeries.setData(candles);
         candleVolumeSeries.setData(volumeBars);
+        candleSarSeries.setData(sarPoints);
+        candleChart.resize(elCandle.clientWidth, elCandle.clientHeight);
         updateCandleSpacing(candles);
-        prices = candles.map((d) => d.close);
-      } else {
-        currentCandleData = [];
-        const labels = series.map((d) => d.date);
-        prices = series.map((d) => d.close);
-        const volumes = series.map((d) => d.volume ?? 0);
-        const volumeColors = series.map((d, index) => {
-          const previousClose = index > 0 ? series[index - 1].close : d.close;
-          return d.close >= previousClose ? "rgba(22, 163, 74, 0.35)" : "rgba(220, 38, 38, 0.35)";
-        });
-        buildChart(labels, prices, volumes, volumeColors, ticker);
-      }
 
-      const chg = prices.at(-1) - prices[0];
-      const pct = (chg / prices[0]) * 100;
-      const c = cls(chg);
-      elSub.innerHTML = '<span class="' + c + '">' + p2(prices.at(-1)) + " " + pPct(pct) + '</span><span style="color:#7b8490"> (' + period + ")</span>";
+        if (isWilder) {
+          const labels = series.map((d) => d.date);
+          const closes = series.map((d) => d.close);
+          const highs = series.map((d) => d.high);
+          const lows = series.map((d) => d.low);
+          const atr = computeATR(highs, lows, closes, 14);
+          const adxData = computeAdxDmi(highs, lows, closes, 14);
+          currIndicator = "wilder_pack";
+          destroyIndicatorChart();
+          elIndicatorSelectWrap.style.display = "none";
+          elIndicatorPanel.classList.add("visible");
+          renderIndicatorChart(labels, {
+            atr,
+            adx: adxData.adx,
+            adxr: adxData.adxr,
+            plusDI: adxData.plusDI,
+            minusDI: adxData.minusDI,
+          });
+        } else {
+          destroyIndicatorChart();
+          elIndicatorSelectWrap.style.display = "none";
+          elIndicatorPanel.classList.remove("visible");
+        }
+
+        const prices = candles.map((d) => d.close);
+        const chg = prices.at(-1) - prices[0];
+        const pct = (chg / prices[0]) * 100;
+        const c = cls(chg);
+        elSub.innerHTML = '<span class="' + c + '">' + p2(prices.at(-1)) + " " + pPct(pct) + '</span><span style="color:#7b8490"> (' + period + ")</span>";
+      } else {
+        setChartMode("technical");
+        currentCandleData = [];
+        renderTechnicalCharts(series, ticker, period);
+      }
     } catch (err) {
-      elSub.textContent = "Chart data unavailable";
+      elSub.textContent = err.message || "Chart data unavailable";
+      destroyIndicatorChart();
+      elIndicatorPanel.classList.remove("visible");
+      elIndicatorSelectWrap.style.display = "none";
     } finally {
       elLoader.style.display = "none";
     }
@@ -890,28 +1604,54 @@
   }
 
   function renderTable() {
+    const preset = getCurrentPreset();
+    if (!preset) {
+      renderEmptyTable("No table presets configured.");
+      return;
+    }
+
     const rows = [...stockData].sort((a, b) => {
-      const va = a[sortCol] ?? 0;
-      const vb = b[sortCol] ?? 0;
-      if (typeof va === "string") return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      const va = a[sortCol];
+      const vb = b[sortCol];
+
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+
+      if (typeof va === "string" || typeof vb === "string") {
+        const sa = String(va);
+        const sb = String(vb);
+        return sortAsc ? sa.localeCompare(sb) : sb.localeCompare(sa);
+      }
+
       return sortAsc ? va - vb : vb - va;
     });
 
+    if (rows.length === 0) {
+      renderEmptyTable("No rows returned for this screen.");
+      return;
+    }
+
     elTbody.innerHTML = rows.map((s) => {
-      const changeClass = cls(s.chg);
-      const inWatchlist = watchlistSet.has(s.ticker);
-      const busy = watchlistBusy.has(s.ticker);
-      return '<tr data-ticker="' + s.ticker + '">' +
-        '<td class="ticker">' + s.ticker + '</td>' +
-        '<td class="watch-col"><input class="watch-toggle" type="checkbox" data-watch-ticker="' + s.ticker + '"' + (inWatchlist ? ' checked' : '') + (busy ? ' disabled' : '') + ' aria-label="Toggle watchlist for ' + s.ticker + '"></td>' +
-        '<td class="numeric">' + p2(s.close) + '</td>' +
-        '<td class="numeric ' + changeClass + '">' + p2(s.chg) + '</td>' +
-        '<td class="numeric ' + changeClass + '">' + pPct(s.chgpct) + '</td>' +
-        '<td class="numeric">' + p2(s.open) + '</td>' +
-        '<td class="numeric">' + p2(s.high) + '</td>' +
-        '<td class="numeric">' + p2(s.low) + '</td>' +
-        '<td class="numeric">' + pVol(s.volume) + '</td>' +
-        '</tr>';
+      const cells = preset.columns.map((column) => {
+        const classes = [];
+        if (column.key === "ticker") {
+          classes.push("ticker");
+        }
+        if (column.key === "watch_toggle") {
+          classes.push("watch-col");
+        }
+        if (isNumericFormat(column.format)) {
+          classes.push("numeric");
+        }
+        if ((column.key === "chg" || column.key === "chgpct") && s[column.key] != null) {
+          classes.push(cls(s[column.key]));
+        }
+
+        return '<td class="' + classes.join(" ") + '">' + formatCellValue(column, s) + "</td>";
+      }).join("");
+
+      return '<tr data-ticker="' + s.ticker + '">' + cells + "</tr>";
     }).join("");
 
     elTbody.querySelectorAll("tr[data-ticker]").forEach((row) => {
@@ -935,12 +1675,7 @@
       });
     });
 
-    document.querySelectorAll("thead th[data-col]").forEach((th) => {
-      th.classList.remove("sorted-asc", "sorted-desc");
-      if (th.dataset.col === sortCol) {
-        th.classList.add(sortAsc ? "sorted-asc" : "sorted-desc");
-      }
-    });
+    updateSortHeaderState();
 
     setSelectedRow();
   }
@@ -993,7 +1728,11 @@
             chg: s.close - s.open,
             chgpct: ((s.close - s.open) / s.open) * 100,
           }));
-          elStatus.textContent = msg.retrieved + " / " + msg.requested + " stocks";
+          let statusText = msg.retrieved + " / " + msg.requested + " stocks";
+          if (msg.failed && msg.failed > 0) {
+            statusText += " (" + msg.failed + " failed \u2014 Yahoo Finance may be unavailable)";
+          }
+          elStatus.textContent = statusText;
           renderTable();
           elSelect.disabled = false;
           resolve();
@@ -1017,46 +1756,51 @@
   }
 
   elSelect.addEventListener("change", runScreen);
-
-  document.querySelectorAll("thead th[data-col]").forEach((th) => {
-    th.addEventListener("click", () => {
-      const col = th.dataset.col;
-      if (sortCol === col) {
-        sortAsc = !sortAsc;
-      } else {
-        sortCol = col;
-        sortAsc = true;
-      }
-
-      if (stockData.length > 0) {
-        renderTable();
-      }
-    });
+  elPresetSelect.addEventListener("change", () => {
+    currTablePresetId = elPresetSelect.value;
+    ensureSortColumnForPreset();
+    renderTableHeader();
+    if (stockData.length > 0) {
+      renderTable();
+    } else {
+      renderEmptyTable("Select a list to load symbols.");
+    }
   });
 
   $("period-btns").addEventListener("click", (event) => {
     const btn = event.target.closest(".period-btn");
     if (!btn) return;
 
-    document.querySelectorAll(".period-btn").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll("#period-btns .period-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
 
     currPeriod = btn.dataset.p;
     loadChart(currTicker, currPeriod);
   });
 
-  $("chart-mode-btns").addEventListener("click", (event) => {
-    const btn = event.target.closest("button[data-chart-mode]");
-    if (!btn) return;
-
-    document.querySelectorAll("button[data-chart-mode]").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-
-    setChartMode(btn.dataset.chartMode);
+  elChartPresetSelect.addEventListener("change", () => {
+    currChartPresetId = elChartPresetSelect.value;
+    const selectedPreset = getCurrentChartPreset();
+    if (selectedPreset && selectedPreset.default_indicator) {
+      currIndicator = selectedPreset.default_indicator;
+      elIndicatorSelect.value = currIndicator;
+    }
     loadChart(currTicker, currPeriod);
   });
 
+  elIndicatorSelect.addEventListener("change", () => {
+    currIndicator = elIndicatorSelect.value;
+    const selectedPreset = getCurrentChartPreset();
+    if (selectedPreset && selectedPreset.mode === "technical") {
+      loadChart(currTicker, currPeriod);
+    }
+  });
+
   document.addEventListener("click", (event) => {
+    if (event.target.closest("#controls") || event.target.closest("#chart-panel") || event.target.closest("#market-strip")) {
+      return;
+    }
+
     if (event.target.closest("#tbody tr[data-ticker]")) {
       return;
     }
@@ -1081,11 +1825,17 @@
       elBadge.style.color = "#dc2626";
     }
 
-    await Promise.all([loadIndexes(), loadLists(), loadWatchlist(), loadBuildInfo()]);
+    await Promise.all([
+      loadIndexes(),
+      loadLists(),
+      loadWatchlist(),
+      loadBuildInfo(),
+      loadTablePresets(),
+      loadChartPresets(),
+    ]);
     if (elSelect.value) {
       await runScreen();
     }
-    setChartMode(currChartMode);
     loadChart(currTicker, currPeriod);
   }
 

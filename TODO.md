@@ -4,7 +4,12 @@ This file tracks upcoming work outside the changelog.
 
 ## Next
 
-- Add technical indicators (SMA, EMA, RSI, ADX/DMI) and fundamental screening.
+- Add technical indicators (SMA, EMA, RSI, ADX/DMI) and fundamental screening. [done]
+- vertical scaling in charts
+- relative volume
+- coloring of sma table for crossovers
+- add ema, macd and di cross over
+- put signals into chart
 
 ## Soon
 

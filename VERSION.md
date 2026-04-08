@@ -4,7 +4,17 @@ This document summarizes the main stock screener releases and their key changes.
 
 ## Released
 
-### release/0.2.0 (current release state)
+### release/0.3.0 (current release state)
+
+- Added Wilder screening table columns: ATR(14), ADX(14), +DI(14), -DI(14), ADXR(14), and ADXRxATR.
+- Added chart preset split between Bollinger and Welles Wilder views.
+- Added Parabolic SAR support in chart rendering.
+- Added robust SSE payload sanitization for non-finite numeric values.
+- Added intraday cache for latest 1d snapshots with background refresh (default every 15 minutes).
+- Added historical OHLC cache up to yesterday, with lazy day-boundary refresh.
+- Hardened history assembly against incomplete upstream rows to avoid intermittent 400 responses.
+
+### release/0.2.0
 
 - uploaded to Render.
 - Added stricter validation for `/screen` and `/history` requests.
