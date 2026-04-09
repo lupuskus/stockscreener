@@ -477,7 +477,7 @@
     <div id="hdr-title">Stock Screener</div>
     <div id="status-cluster">
       <div id="backend-badge">Checking...</div>
-      <div id="build-info">Build: loading...</div>
+      <div id="build-info">Version: loading...</div>
     </div>
   </header>
 
@@ -1491,6 +1491,25 @@
     return payload?.detail?.error?.message || payload?.detail?.message || payload?.detail || fallback;
   }
 
+  function formatBuildTime(value) {
+    if (!value) {
+      return "unknown";
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return String(value);
+    }
+    return parsed.toLocaleString("en-GB", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  }
+
   async function loadWatchlist() {
     const res = await fetch(API + "/watchlist");
     if (!res.ok) throw new Error("Watchlist fetch failed");
@@ -1503,11 +1522,14 @@
       const res = await fetch(API + "/build-info");
       if (!res.ok) throw new Error("Build metadata unavailable");
       const payload = await res.json();
+      const version = payload.version || "0.3.0";
+      const buildNumber = payload.build_number || "0";
+      const builtAt = formatBuildTime(payload.built_at);
       const branch = payload.branch || "unknown";
       const shortCommit = payload.short_commit || "unknown";
-      elBuildInfo.textContent = "Build: " + branch + " @ " + shortCommit;
+      elBuildInfo.textContent = "Version " + version + " | Build " + buildNumber + " | " + builtAt + " | " + branch + " @ " + shortCommit;
     } catch {
-      elBuildInfo.textContent = "Build: local";
+      elBuildInfo.textContent = "Version 0.3.0 | Build local";
     }
   }
 

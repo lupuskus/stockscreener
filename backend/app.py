@@ -3,9 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List
 
+from datetime import datetime, timezone
 import json
 import os
 import re
+import subprocess
 
 try:
     import tomllib
@@ -37,7 +39,7 @@ from backend.service import (
 )
 
 
-app = FastAPI(title="Stock Screener API", version="1.0.0")
+app = FastAPI(title="Stock Screener API", version=os.getenv("APP_VERSION", "0.3.0"))
 
 @app.on_event("startup")
 def startup_event() -> None:
@@ -58,6 +60,7 @@ app.add_middleware(
 )
 
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _TABLE_PRESETS_PATH = Path(__file__).resolve().parent.parent / "table_presets.toml"
 _CHART_PRESETS_PATH = Path(__file__).resolve().parent.parent / "chart_presets.toml"
 _TICKER_RE = re.compile(r'^[\w.\-\^=]{1,20}$')
@@ -65,6 +68,66 @@ _STOCK_LIST_RE = re.compile(r'^[A-Za-z0-9._\-]+\.stocks$')
 _ALLOWED_PERIODS = {
     "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"
 }
+_APP_VERSION = os.getenv("APP_VERSION", "0.3.0")
+
+
+def _run_git_command(args: List[str]) -> str | None:
+    try:
+        value = subprocess.check_output(
+            ["git", *args],
+            cwd=str(_PROJECT_ROOT),
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:
+        return None
+    return value or None
+
+
+def _build_number_from_commit(commit: str) -> str | None:
+    hex_part = "".join(ch for ch in commit.lower() if ch in "0123456789abcdef")[:8]
+    if not hex_part:
+        return None
+    try:
+        return str(int(hex_part, 16))
+    except ValueError:
+        return None
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _build_metadata() -> Dict[str, str]:
+    branch = os.getenv("RENDER_GIT_BRANCH") or os.getenv("GIT_BRANCH") or _run_git_command(["rev-parse", "--abbrev-ref", "HEAD"]) or "local"
+    commit = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or _run_git_command(["rev-parse", "HEAD"]) or "local"
+    short_commit = commit[:7] if commit != "local" else commit
+
+    build_number = os.getenv("BUILD_NUMBER")
+    if not build_number and commit != "local":
+        build_number = _run_git_command(["rev-list", "--count", commit])
+    if not build_number and commit != "local":
+        build_number = _build_number_from_commit(commit)
+    if not build_number:
+        build_number = "0"
+
+    built_at = os.getenv("BUILD_TIMESTAMP")
+    if not built_at and commit != "local":
+        built_at = _run_git_command(["show", "-s", "--format=%cI", commit])
+    if not built_at:
+        built_at = _utc_now_iso()
+
+    return {
+        "version": _APP_VERSION,
+        "branch": branch,
+        "commit": commit,
+        "short_commit": short_commit,
+        "build_number": build_number,
+        "built_at": built_at,
+    }
+
+
+_BUILD_METADATA = _build_metadata()
 
 
 def _default_table_presets() -> Dict[str, object]:
@@ -321,14 +384,7 @@ def health() -> Dict[str, str]:
 
 @app.get("/build-info")
 def build_info() -> Dict[str, str]:
-    branch = os.getenv("RENDER_GIT_BRANCH") or os.getenv("GIT_BRANCH") or "local"
-    commit = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or "local"
-    short_commit = commit[:7] if commit and commit != "local" else commit
-    return {
-        "branch": branch,
-        "commit": commit,
-        "short_commit": short_commit,
-    }
+    return _BUILD_METADATA
 
 
 @app.get("/stock-lists")

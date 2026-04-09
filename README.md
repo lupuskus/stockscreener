@@ -146,6 +146,22 @@ For active and planned work, see `TODO.md`.
 
 For key past versions and planned future versions, see `VERSION.md`.
 
+## Versioning and Build Metadata
+
+- Current app version default: `0.3.0` (can be overridden with `APP_VERSION`).
+- The backend exposes `GET /build-info` with:
+  - `version`
+  - `build_number`
+  - `built_at`
+  - `branch`
+  - `commit`
+  - `short_commit`
+- Build number behavior:
+  - Uses `BUILD_NUMBER` if provided by deployment.
+  - Otherwise derives from git commit history (`git rev-list --count`).
+  - If git metadata is unavailable, it falls back to a commit-based numeric value.
+- The frontend header displays version, build number, build date/time, and branch/commit.
+
 ## Disclaimer
 
 This project is for educational and informational use only, and is not financial advice.
