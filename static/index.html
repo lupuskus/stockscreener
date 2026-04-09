@@ -463,6 +463,25 @@
     @media (max-width: 1100px) {
       body { overflow: auto; }
       #app { height: auto; min-height: 100vh; }
+      #market-strip {
+        overflow-x: visible;
+        white-space: normal;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px 12px;
+      }
+      .mkt-item {
+        min-width: 0;
+      }
+      #chart-title-row {
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+      #period-btns {
+        width: 100%;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
       #workspace {
         grid-template-columns: 1fr;
         grid-template-rows: 52vh 52vh;
@@ -639,6 +658,7 @@
   const watchlistBusy = new Set();
 
   const IDX_TICKER = { ftse100: "^FTSE", ftse250: "^FTMC", dax: "^GDAXI" };
+  const TICKER_LABEL = { "^FTSE": "FTSE100", "^FTMC": "FTSE250", "^GDAXI": "DAX" };
   const ctx = $("the-chart").getContext("2d");
   const UI_STATE_KEY = "stockscreener.ui_state.v1";
   const VALID_VIEWS = new Set(["table", "split", "chart"]);
@@ -709,6 +729,24 @@
     document.querySelectorAll("#period-btns .period-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.p === currPeriod);
     });
+  }
+
+  function displayTickerLabel(ticker) {
+    return TICKER_LABEL[ticker] || ticker;
+  }
+
+  function inferListMarketTicker(stockListName) {
+    const normalized = String(stockListName || "").toLowerCase();
+    if (normalized === "dax.stocks") {
+      return "^GDAXI";
+    }
+    if (normalized === "ftse250.stocks") {
+      return "^FTMC";
+    }
+    if (normalized === "ftse100.stocks") {
+      return "^FTSE";
+    }
+    return DEFAULT_MARKET_TICKER;
   }
 
   applyUiState();
@@ -1451,7 +1489,7 @@
 
   async function loadChart(ticker, period) {
     elLoader.style.display = "flex";
-    elTitle.textContent = ticker;
+    elTitle.textContent = displayTickerLabel(ticker);
     elSub.textContent = "Loading...";
 
     try {
@@ -1874,6 +1912,9 @@
 
   elSelect.addEventListener("change", () => {
     currStockList = elSelect.value || "";
+    selectedTicker = "";
+    currTicker = inferListMarketTicker(currStockList);
+    loadChart(currTicker, currPeriod);
     saveUiState();
     runScreen();
   });
