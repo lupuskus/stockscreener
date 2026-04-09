@@ -28,6 +28,7 @@ from backend.service import (
     fetch_index_snapshot,
     fetch_ticker_history,
     fetch_ticker_history_ohlc,
+    fetch_ticker_history_ohlc_interval,
     get_watchlist,
     list_stock_files,
     read_stock_list,
@@ -68,6 +69,7 @@ _STOCK_LIST_RE = re.compile(r'^[A-Za-z0-9._\-]+\.stocks$')
 _ALLOWED_PERIODS = {
     "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"
 }
+_ALLOWED_CHART_INTERVALS = {"1h", "4h", "1d", "1wk"}
 _APP_VERSION = os.getenv("APP_VERSION", "0.3.0")
 
 
@@ -339,6 +341,18 @@ def _normalize_ticker(ticker: str) -> str:
     return normalized
 
 
+def _normalize_chart_interval(interval: str) -> str:
+    normalized = interval.strip().lower()
+    if normalized not in _ALLOWED_CHART_INTERVALS:
+        _raise_bad_request(
+            code="invalid_interval",
+            message="Unsupported interval. Use one of: 1h, 4h, 1d, 1wk.",
+            field="interval",
+            value=interval,
+        )
+    return normalized
+
+
 def _normalize_stock_list(stock_list: str) -> str:
     normalized = stock_list.strip()
     if not _STOCK_LIST_RE.match(normalized):
@@ -504,11 +518,15 @@ def history(ticker: str, period: str = "1mo") -> Dict[str, object]:
 
 
 @app.get("/history-ohlc/{ticker}")
-def history_ohlc(ticker: str, period: str = "1mo") -> Dict[str, object]:
+def history_ohlc(ticker: str, period: str = "1mo", interval: str = "1d") -> Dict[str, object]:
     normalized_ticker = _normalize_ticker(ticker)
-    normalized_period = _normalize_period(period)
+    normalized_interval = _normalize_chart_interval(interval)
     try:
-        series = fetch_ticker_history_ohlc(normalized_ticker, period=normalized_period)
+        if normalized_interval == "1d":
+            normalized_period = _normalize_period(period)
+            series = fetch_ticker_history_ohlc(normalized_ticker, period=normalized_period)
+        else:
+            series = fetch_ticker_history_ohlc_interval(normalized_ticker, interval=normalized_interval)
     except UpstreamTimeoutError as exc:
         raise HTTPException(
             status_code=504,

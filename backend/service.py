@@ -25,6 +25,12 @@ INDEXES = {
     "ftse250": "^FTMC",
     "dax": "^GDAXI",
 }
+CHART_INTERVALS = {
+    "1h": {"period": "1mo", "yf_interval": "60m"},
+    "4h": {"period": "3mo", "yf_interval": "60m"},
+    "1d": {"period": "1y", "yf_interval": "1d"},
+    "1wk": {"period": "5y", "yf_interval": "1wk"},
+}
 
 
 def _read_float_env(name: str, default: float, *, minimum: float) -> float:
@@ -96,12 +102,14 @@ def _is_retryable_error(exc: Exception) -> bool:
     return "429" in message or "too many requests" in message or "temporarily unavailable" in message
 
 
-def _call_history_with_retry(ticker: str, period: str):
+def _call_history_with_retry(ticker: str, period: str, *, interval: str | None = None):
     attempts = YF_MAX_RETRIES + 1
     last_error: Exception | None = None
 
     for attempt in range(1, attempts + 1):
         try:
+            if interval:
+                return yf.Ticker(ticker).history(period=period, interval=interval, timeout=YF_TIMEOUT_SECONDS)
             return yf.Ticker(ticker).history(period=period, timeout=YF_TIMEOUT_SECONDS)
         except Exception as exc:  # noqa: BLE001
             last_error = exc
@@ -361,6 +369,82 @@ def _history_to_ohlc_rows(history) -> List[Dict[str, object]]:
             }
         )
     return rows
+
+
+def _history_to_interval_rows(history, *, date_only: bool) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    for idx, row in history.iterrows():
+        open_value = _to_float(row.get("Open"))
+        high_value = _to_float(row.get("High"))
+        low_value = _to_float(row.get("Low"))
+        close_value = _to_float(row.get("Close"))
+        volume_value = _to_int(row.get("Volume"))
+        if (
+            open_value is None
+            or high_value is None
+            or low_value is None
+            or close_value is None
+            or volume_value is None
+        ):
+            continue
+
+        if date_only:
+            date_value = str(idx.date())
+        else:
+            date_value = idx.to_pydatetime().isoformat()
+
+        rows.append(
+            {
+                "date": date_value,
+                "open": open_value,
+                "high": high_value,
+                "low": low_value,
+                "close": close_value,
+                "volume": volume_value,
+            }
+        )
+    return rows
+
+
+def _aggregate_intraday_rows(rows: List[Dict[str, object]], *, hours: int) -> List[Dict[str, object]]:
+    if hours <= 1:
+        return rows
+
+    buckets: Dict[str, Dict[str, object]] = {}
+    order: List[str] = []
+    for row in rows:
+        date_value = row.get("date")
+        if not isinstance(date_value, str) or "T" not in date_value:
+            continue
+
+        try:
+            dt = datetime.fromisoformat(date_value)
+        except ValueError:
+            continue
+
+        bucket_hour = (dt.hour // hours) * hours
+        bucket_start = dt.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+        bucket_key = bucket_start.isoformat()
+
+        if bucket_key not in buckets:
+            buckets[bucket_key] = {
+                "date": bucket_key,
+                "open": row["open"],
+                "high": row["high"],
+                "low": row["low"],
+                "close": row["close"],
+                "volume": row["volume"],
+            }
+            order.append(bucket_key)
+            continue
+
+        bucket = buckets[bucket_key]
+        bucket["high"] = max(float(bucket["high"]), float(row["high"]))
+        bucket["low"] = min(float(bucket["low"]), float(row["low"]))
+        bucket["close"] = row["close"]
+        bucket["volume"] = int(bucket["volume"]) + int(row["volume"])
+
+    return [buckets[key] for key in order]
 
 
 def _get_or_fetch_historical_rows(ticker: str, period: str) -> List[Dict[str, object]]:
@@ -856,6 +940,30 @@ def fetch_ticker_history_ohlc(ticker: str, period: str = "1mo") -> list:
     intraday_snapshot = _get_or_fetch_intraday_snapshot(ticker, include_extended=False)
     rows = _get_or_fetch_historical_rows(ticker, period)
     return _append_intraday_row(rows, intraday_snapshot)
+
+
+def fetch_ticker_history_ohlc_interval(ticker: str, interval: str) -> List[Dict[str, object]]:
+    normalized_interval = interval.strip().lower()
+    config = CHART_INTERVALS.get(normalized_interval)
+    if config is None:
+        raise ValueError(f"Unsupported chart interval: {interval}")
+
+    if normalized_interval == "1d":
+        return fetch_ticker_history_ohlc(ticker, period=config["period"])
+
+    history = _call_history_with_retry(
+        ticker,
+        period=config["period"],
+        interval=config["yf_interval"],
+    )
+    if history.empty:
+        return []
+
+    date_only = normalized_interval == "1wk"
+    rows = _history_to_interval_rows(history, date_only=date_only)
+    if normalized_interval == "4h":
+        rows = _aggregate_intraday_rows(rows, hours=4)
+    return rows
 
 
 def _get_or_fetch_intraday_snapshot(ticker: str, *, include_extended: bool) -> Dict[str, object] | None:

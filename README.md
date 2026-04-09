@@ -14,6 +14,8 @@ The app fetches OHLCV market data from Yahoo Finance for stock lists (`*.stocks`
 - Screen a selected list and return latest OHLCV data per ticker
 - Fetch market index snapshots (FTSE 100, FTSE 250, and DAX)
 - Fetch ticker close-price history for charting
+- Chart supports Weekly, Daily, 4H, and 1H timeframes with zoom in/out controls
+- Chart defaults to about 20 bars on mobile and 30 bars on desktop
 - FastAPI endpoints for UI and API integration
 - Static UI with list selection, ticker preview, result table, chart, and watchlist actions
 - Static UI remembers your last selected list/view/chart period/presets between sessions
