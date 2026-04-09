@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import os
+import tempfile
 import threading
 import time
 from datetime import date, datetime
@@ -190,10 +191,17 @@ def _persist_intraday_cache() -> None:
             "saved_at": time.time(),
             "entries": _intraday_cache,
         }
-    temp_path = INTRADAY_CACHE_FILE.with_suffix(".tmp")
-    with temp_path.open("w", encoding="utf-8") as stream:
-        json.dump(payload, stream)
-    temp_path.replace(INTRADAY_CACHE_FILE)
+    fd, tmp_path = tempfile.mkstemp(prefix=f"{INTRADAY_CACHE_FILE.stem}.", suffix=".tmp", dir=str(INTRADAY_CACHE_DIR))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream)
+        os.replace(tmp_path, INTRADAY_CACHE_FILE)
+    finally:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _load_intraday_cache() -> None:
@@ -242,10 +250,17 @@ def _persist_historical_cache() -> None:
             "saved_at": time.time(),
             "entries": _historical_cache,
         }
-    temp_path = HISTORICAL_CACHE_FILE.with_suffix(".tmp")
-    with temp_path.open("w", encoding="utf-8") as stream:
-        json.dump(payload, stream)
-    temp_path.replace(HISTORICAL_CACHE_FILE)
+    fd, tmp_path = tempfile.mkstemp(prefix=f"{HISTORICAL_CACHE_FILE.stem}.", suffix=".tmp", dir=str(INTRADAY_CACHE_DIR))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream)
+        os.replace(tmp_path, HISTORICAL_CACHE_FILE)
+    finally:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _load_historical_cache() -> None:
@@ -307,7 +322,10 @@ def _store_cached_historical_rows(ticker: str, period: str, rows: List[Dict[str,
             "saved_at": time.time(),
             "rows": _sanitize_json_value([dict(row) for row in rows]),
         }
-    _persist_historical_cache()
+    try:
+        _persist_historical_cache()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[cache] Failed to persist historical cache: %s", exc)
 
 
 def _history_to_ohlc_rows(history) -> List[Dict[str, object]]:
