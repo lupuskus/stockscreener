@@ -9,7 +9,7 @@ The app fetches OHLCV market data from Yahoo Finance for stock lists (`*.stocks`
 
 ## Current Features
 
-- List and load stock list files automatically (`ftse100.stocks`, `ftse250.stocks`, `watchlist.stocks`)
+- List and load stock list files automatically (`ftse100.stocks`, `ftse250.stocks`, `dax.stocks`, `watchlist.stocks`)
 - Screen a selected list and return latest OHLCV data per ticker
 - Fetch market index snapshots (FTSE 100, FTSE 250, and DAX)
 - Fetch ticker close-price history for charting
