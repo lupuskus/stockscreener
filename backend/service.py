@@ -6,9 +6,10 @@ import math
 import os
 import threading
 import time
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, Generator, List
+from zoneinfo import ZoneInfo
 
 from requests import RequestException
 import yfinance as yf
@@ -50,6 +51,9 @@ YF_TIMEOUT_SECONDS = _read_float_env("STOCK_API_TIMEOUT_SECONDS", 8.0, minimum=0
 YF_MAX_RETRIES = _read_int_env("STOCK_API_MAX_RETRIES", 2, minimum=0, maximum=6)
 YF_RETRY_BACKOFF_SECONDS = _read_float_env("STOCK_API_RETRY_BACKOFF_SECONDS", 0.5, minimum=0.05)
 STOCK_CACHE_REFRESH_SECONDS = _read_int_env("STOCK_CACHE_REFRESH_SECONDS", 900, minimum=60, maximum=86400)
+STOCK_MARKET_TIMEZONE = os.getenv("STOCK_MARKET_TIMEZONE", "Europe/London")
+STOCK_MARKET_CLOSE_HOUR = _read_int_env("STOCK_MARKET_CLOSE_HOUR", 16, minimum=0, maximum=23)
+STOCK_MARKET_CLOSE_MINUTE = _read_int_env("STOCK_MARKET_CLOSE_MINUTE", 35, minimum=0, maximum=59)
 INTRADAY_CACHE_DIR = ROOT_DIR / ".cache"
 INTRADAY_CACHE_FILE = INTRADAY_CACHE_DIR / "intraday_quotes.json"
 HISTORICAL_CACHE_FILE = INTRADAY_CACHE_DIR / "historical_prices.json"
@@ -61,6 +65,11 @@ _intraday_cache_thread: threading.Thread | None = None
 _intraday_cache: Dict[str, Dict[str, object]] = {}
 _historical_cache_lock = threading.RLock()
 _historical_cache: Dict[str, Dict[str, object]] = {}
+
+try:
+    _MARKET_TZ: ZoneInfo | None = ZoneInfo(STOCK_MARKET_TIMEZONE)
+except Exception:  # noqa: BLE001
+    _MARKET_TZ = None
 
 
 class UpstreamTimeoutError(RuntimeError):
@@ -129,8 +138,38 @@ def _today_local_str() -> str:
     return _today_local().isoformat()
 
 
-def _cache_saved_today(timestamp: float) -> bool:
-    return _is_same_local_day(timestamp)
+def _market_datetime(timestamp: float) -> datetime:
+    if _MARKET_TZ is not None:
+        return datetime.fromtimestamp(timestamp, tz=_MARKET_TZ)
+    return datetime.fromtimestamp(timestamp)
+
+
+def _is_same_market_day(ts_a: float, ts_b: float) -> bool:
+    return _market_datetime(ts_a).date() == _market_datetime(ts_b).date()
+
+
+def _market_close_timestamp(reference_timestamp: float) -> float:
+    reference = _market_datetime(reference_timestamp)
+    close_time = reference.replace(
+        hour=STOCK_MARKET_CLOSE_HOUR,
+        minute=STOCK_MARKET_CLOSE_MINUTE,
+        second=0,
+        microsecond=0,
+    )
+    return close_time.timestamp()
+
+
+def _historical_cache_is_fresh(saved_at: float) -> bool:
+    now = time.time()
+    if not _is_same_market_day(saved_at, now):
+        return False
+
+    close_ts = _market_close_timestamp(now)
+    if now < close_ts:
+        return True
+
+    # After market close, force one refresh unless the cache was written post-close.
+    return saved_at >= close_ts
 
 
 def _sanitize_json_value(value):
@@ -251,7 +290,7 @@ def _get_cached_historical_rows(ticker: str, period: str) -> List[Dict[str, obje
         rows = entry.get("rows")
         if not isinstance(saved_at, (int, float)) or not isinstance(rows, list):
             return None
-        if not _cache_saved_today(float(saved_at)):
+        if not _historical_cache_is_fresh(float(saved_at)):
             return None
         return [
             _sanitize_json_value(dict(row))

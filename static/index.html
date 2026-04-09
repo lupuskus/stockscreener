@@ -640,6 +640,78 @@
 
   const IDX_TICKER = { ftse100: "^FTSE", ftse250: "^FTMC" };
   const ctx = $("the-chart").getContext("2d");
+  const UI_STATE_KEY = "stockscreener.ui_state.v1";
+  const VALID_VIEWS = new Set(["table", "split", "chart"]);
+  const VALID_PERIODS = new Set(["5d", "1mo", "3mo", "6mo", "1y"]);
+  let currView = "split";
+  let currStockList = "";
+
+  function readUiState() {
+    try {
+      const raw = localStorage.getItem(UI_STATE_KEY);
+      if (!raw) {
+        return {};
+      }
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveUiState() {
+    try {
+      const payload = {
+        stockList: currStockList || elSelect.value || "",
+        tablePresetId: currTablePresetId || "",
+        chartPresetId: currChartPresetId || "",
+        indicator: currIndicator || "",
+        period: currPeriod || "1mo",
+        view: currView || "split",
+        selectedTicker: selectedTicker || "",
+        currTicker: currTicker || DEFAULT_MARKET_TICKER,
+      };
+      localStorage.setItem(UI_STATE_KEY, JSON.stringify(payload));
+    } catch {
+      // Ignore storage failures (private mode / quota / disabled storage).
+    }
+  }
+
+  function applyUiState() {
+    const state = readUiState();
+    if (typeof state.stockList === "string") {
+      currStockList = state.stockList;
+    }
+    if (typeof state.tablePresetId === "string") {
+      currTablePresetId = state.tablePresetId;
+    }
+    if (typeof state.chartPresetId === "string") {
+      currChartPresetId = state.chartPresetId;
+    }
+    if (typeof state.indicator === "string") {
+      currIndicator = state.indicator;
+    }
+    if (typeof state.period === "string" && VALID_PERIODS.has(state.period)) {
+      currPeriod = state.period;
+    }
+    if (typeof state.view === "string" && VALID_VIEWS.has(state.view)) {
+      currView = state.view;
+    }
+    if (typeof state.selectedTicker === "string") {
+      selectedTicker = state.selectedTicker;
+    }
+    if (typeof state.currTicker === "string" && state.currTicker.trim()) {
+      currTicker = state.currTicker;
+    }
+  }
+
+  function syncPeriodButtons() {
+    document.querySelectorAll("#period-btns .period-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.p === currPeriod);
+    });
+  }
+
+  applyUiState();
 
   function fallbackTablePresets() {
     return {
@@ -791,8 +863,9 @@
       : fallbackTablePresets().presets;
 
     const availableIds = new Set(tablePresets.map((preset) => preset.id));
-    currTablePresetId = availableIds.has(payload.default_preset)
-      ? payload.default_preset
+    const preferredPresetId = currTablePresetId || payload.default_preset;
+    currTablePresetId = availableIds.has(preferredPresetId)
+      ? preferredPresetId
       : tablePresets[0].id;
 
     elPresetSelect.innerHTML = "";
@@ -808,6 +881,7 @@
     ensureSortColumnForPreset();
     renderTableHeader();
     renderEmptyTable("Select a list to load symbols.");
+    saveUiState();
   }
 
   async function loadChartPresets() {
@@ -826,8 +900,9 @@
       : fallbackChartPresets().presets;
 
     const availableIds = new Set(chartPresets.map((preset) => preset.id));
-    currChartPresetId = availableIds.has(payload.default_preset)
-      ? payload.default_preset
+    const preferredChartPresetId = currChartPresetId || payload.default_preset;
+    currChartPresetId = availableIds.has(preferredChartPresetId)
+      ? preferredChartPresetId
       : chartPresets[0].id;
 
     elChartPresetSelect.innerHTML = "";
@@ -841,8 +916,12 @@
     elChartPresetSelect.disabled = false;
 
     const selectedPreset = getCurrentChartPreset();
-    currIndicator = selectedPreset?.default_indicator || "rsi";
+    const indicatorOptions = Array.from(elIndicatorSelect.options).map((option) => option.value);
+    if (!indicatorOptions.includes(currIndicator)) {
+      currIndicator = selectedPreset?.default_indicator || indicatorOptions[0] || "rsi";
+    }
     elIndicatorSelect.value = currIndicator;
+    saveUiState();
   }
 
   function setChartMode(mode) {
@@ -1570,6 +1649,7 @@
     selectedTicker = "";
     setSelectedRow();
     currTicker = DEFAULT_MARKET_TICKER;
+    saveUiState();
     loadChart(currTicker, currPeriod);
   }
 
@@ -1613,11 +1693,16 @@
         elSelect.appendChild(o);
       });
 
-      if (lists.includes("watchlist.stocks")) {
+      if (currStockList && lists.includes(currStockList)) {
+        elSelect.value = currStockList;
+      } else if (lists.includes("watchlist.stocks")) {
         elSelect.value = "watchlist.stocks";
       } else if (lists.length > 0) {
         elSelect.value = lists[0];
       }
+
+      currStockList = elSelect.value || "";
+      saveUiState();
 
       elSelect.disabled = lists.length === 0;
     } catch (err) {
@@ -1681,6 +1766,7 @@
         selectedTicker = row.dataset.ticker;
         setSelectedRow();
         currTicker = selectedTicker;
+        saveUiState();
         loadChart(currTicker, currPeriod);
       });
     });
@@ -1755,7 +1841,16 @@
             statusText += " (" + msg.failed + " failed \u2014 Yahoo Finance may be unavailable)";
           }
           elStatus.textContent = statusText;
+
+          if (selectedTicker && !stockData.some((item) => item.ticker === selectedTicker)) {
+            selectedTicker = "";
+            if (!stockData.some((item) => item.ticker === currTicker)) {
+              currTicker = DEFAULT_MARKET_TICKER;
+            }
+          }
+
           renderTable();
+          saveUiState();
           elSelect.disabled = false;
           resolve();
         } else if (msg.type === "error") {
@@ -1777,7 +1872,11 @@
     });
   }
 
-  elSelect.addEventListener("change", runScreen);
+  elSelect.addEventListener("change", () => {
+    currStockList = elSelect.value || "";
+    saveUiState();
+    runScreen();
+  });
   elPresetSelect.addEventListener("change", () => {
     currTablePresetId = elPresetSelect.value;
     ensureSortColumnForPreset();
@@ -1787,6 +1886,7 @@
     } else {
       renderEmptyTable("Select a list to load symbols.");
     }
+    saveUiState();
   });
 
   $("period-btns").addEventListener("click", (event) => {
@@ -1797,6 +1897,7 @@
     btn.classList.add("active");
 
     currPeriod = btn.dataset.p;
+    saveUiState();
     loadChart(currTicker, currPeriod);
   });
 
@@ -1807,11 +1908,13 @@
       currIndicator = selectedPreset.default_indicator;
       elIndicatorSelect.value = currIndicator;
     }
+    saveUiState();
     loadChart(currTicker, currPeriod);
   });
 
   elIndicatorSelect.addEventListener("change", () => {
     currIndicator = elIndicatorSelect.value;
+    saveUiState();
     const selectedPreset = getCurrentChartPreset();
     if (selectedPreset && selectedPreset.mode === "technical") {
       loadChart(currTicker, currPeriod);
@@ -1855,13 +1958,14 @@
       loadTablePresets(),
       loadChartPresets(),
     ]);
+    syncPeriodButtons();
+    setView(currView);
     if (elSelect.value) {
       await runScreen();
     }
     loadChart(currTicker, currPeriod);
+    saveUiState();
   }
-
-  let currView = "split";
 
   function setView(view) {
     currView = view;
@@ -1878,6 +1982,7 @@
         updateCandleSpacing(currentCandleData);
       }
     });
+    saveUiState();
   }
 
   document.querySelectorAll(".view-btn").forEach((btn) => {

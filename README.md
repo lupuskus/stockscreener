@@ -15,6 +15,7 @@ The app fetches OHLCV market data from Yahoo Finance for stock lists (`*.stocks`
 - Fetch ticker close-price history for charting
 - FastAPI endpoints for UI and API integration
 - Static UI with list selection, ticker preview, result table, chart, and watchlist actions
+- Static UI remembers your last selected list/view/chart period/presets between sessions
 - Simple script `startstockserver` for local backend startup
 
 ## Project Structure
@@ -41,10 +42,13 @@ Optional backend environment variables:
 - `STOCK_API_MAX_RETRIES` (default: `2`)
 - `STOCK_API_RETRY_BACKOFF_SECONDS` (default: `0.5`)
 - `STOCK_CACHE_REFRESH_SECONDS` (default: `900`)
+- `STOCK_MARKET_TIMEZONE` (default: `Europe/London`)
+- `STOCK_MARKET_CLOSE_HOUR` (default: `16`)
+- `STOCK_MARKET_CLOSE_MINUTE` (default: `35`)
 
 Latest `1d` stock and index data is cached locally in `.cache/intraday_quotes.json`. The backend reuses that cache for screen loads and refreshes it in the background every 15 minutes by default.
 
-Historical OHLC data up to yesterday is cached locally in `.cache/historical_prices.json`. That cache is reused for chart/history requests and for indicator calculations. It is refreshed lazily when needed on a new day, rather than on the 15-minute intraday schedule.
+Historical OHLC data up to yesterday is cached locally in `.cache/historical_prices.json`. That cache is reused for chart/history requests and for indicator calculations. It is refreshed lazily when needed, including once after market close on the same market day (default London close `16:35`) and again on new market days.
 
 ## Setup
 
