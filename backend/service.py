@@ -24,6 +24,7 @@ INDEXES = {
     "ftse100": "^FTSE",
     "ftse250": "^FTMC",
     "dax": "^GDAXI",
+    "eurostoxx50": "^STOXX50E",
 }
 CHART_INTERVALS = {
     "1h": {"period": "1mo", "yf_interval": "60m"},

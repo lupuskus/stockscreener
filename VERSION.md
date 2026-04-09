@@ -17,6 +17,7 @@ This document summarizes the main stock screener releases and their key changes.
 - Added stable build/version metadata endpoint and frontend display (version, build, timestamp, branch/commit).
 - Added persistent frontend view state restore (selected list/view/chart period/presets/ticker).
 - Added DAX index snapshot support and DAX constituents list.
+- Added EURO STOXX 50 index snapshot support and EURO STOXX 50 constituents list.
 - Added chart timeframes: Weekly, Daily, 4H, 1H, with zoom controls and viewport-based default bars (mobile 20 / desktop 30).
 - Improved mobile layout behavior for market strip and chart controls.
 

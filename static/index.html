@@ -672,8 +672,13 @@
   let watchlistSet = new Set();
   const watchlistBusy = new Set();
 
-  const IDX_TICKER = { ftse100: "^FTSE", ftse250: "^FTMC", dax: "^GDAXI" };
-  const TICKER_LABEL = { "^FTSE": "FTSE100", "^FTMC": "FTSE250", "^GDAXI": "DAX" };
+  const IDX_TICKER = { ftse100: "^FTSE", ftse250: "^FTMC", dax: "^GDAXI", eurostoxx50: "^STOXX50E" };
+  const TICKER_LABEL = {
+    "^FTSE": "FTSE100",
+    "^FTMC": "FTSE250",
+    "^GDAXI": "DAX",
+    "^STOXX50E": "EURO STOXX 50",
+  };
   const TIMEFRAME_LABEL = { "1wk": "Weekly", "1d": "Daily", "4h": "4H", "1h": "1H" };
   const ctx = $("the-chart").getContext("2d");
   const UI_STATE_KEY = "stockscreener.ui_state.v1";
@@ -798,6 +803,9 @@
     const normalized = String(stockListName || "").toLowerCase();
     if (normalized === "dax.stocks") {
       return "^GDAXI";
+    }
+    if (normalized === "eurostoxx50.stocks") {
+      return "^STOXX50E";
     }
     if (normalized === "ftse250.stocks") {
       return "^FTMC";

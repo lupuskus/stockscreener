@@ -14,7 +14,8 @@ This file tracks upcoming work outside the changelog.
 ## Soon
 
 - Create different watchlists that can be loaded and saved
-- Get euroSTOXX indices
+- Extend EURO STOXX support (e.g., STOXX Europe 600 variants)
+- Deduplicate cache work per ticker across overlapping lists (e.g., BMW in DAX and EURO STOXX) so each ticker is cached once
 - Create configurable filters (sector, number filters like >x, crossover filters like SMA5>SMA20 or DI+>DI-) with savable filter settings
 - Add persistent logging (.log file for all server messages)
 - Add test suite for backend service functions and API routes

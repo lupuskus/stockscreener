@@ -5,14 +5,15 @@ A Python stock screener for UK markets with:
 - a FastAPI backend
 - a static browser UI served from `static/`
 
-The app fetches OHLCV market data from Yahoo Finance for stock lists (`*.stocks`) and index snapshots for FTSE 100 (`^FTSE`), FTSE 250 (`^FTMC`), and DAX (`^GDAXI`).
+The app fetches OHLCV market data from Yahoo Finance for stock lists (`*.stocks`) and index snapshots for FTSE 100 (`^FTSE`), FTSE 250 (`^FTMC`), DAX (`^GDAXI`), and EURO STOXX 50 (`^STOXX50E`).
 
 ## Current Features
 
-- List and load stock list files automatically (`ftse100.stocks`, `ftse250.stocks`, `dax.stocks`, `watchlist.stocks`)
+- List and load stock list files automatically (`ftse100.stocks`, `ftse250.stocks`, `dax.stocks`, `eurostoxx50.stocks`, `watchlist.stocks`)
   - `dax.stocks` contains DAX constituents (company tickers), while the market strip index snapshot uses `^GDAXI`.
+  - `eurostoxx50.stocks` contains EURO STOXX 50 constituents, while the market strip index snapshot uses `^STOXX50E`.
 - Screen a selected list and return latest OHLCV data per ticker
-- Fetch market index snapshots (FTSE 100, FTSE 250, and DAX)
+- Fetch market index snapshots (FTSE 100, FTSE 250, DAX, and EURO STOXX 50)
 - Fetch ticker close-price history for charting
 - Chart supports Weekly, Daily, 4H, and 1H timeframes with zoom in/out controls
 - Chart defaults to about 20 bars on mobile and 30 bars on desktop
