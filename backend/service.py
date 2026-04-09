@@ -65,6 +65,8 @@ STOCK_MARKET_CLOSE_MINUTE = _read_int_env("STOCK_MARKET_CLOSE_MINUTE", 35, minim
 INTRADAY_CACHE_DIR = ROOT_DIR / ".cache"
 INTRADAY_CACHE_FILE = INTRADAY_CACHE_DIR / "intraday_quotes.json"
 HISTORICAL_CACHE_FILE = INTRADAY_CACHE_DIR / "historical_prices.json"
+INTERVAL_HISTORICAL_CACHE_FILE = INTRADAY_CACHE_DIR / "interval_historical_prices.json"
+INTERVAL_LIVE_CACHE_FILE = INTRADAY_CACHE_DIR / "interval_live_prices.json"
 INDEX_TICKERS = set(INDEXES.values())
 
 _intraday_cache_lock = threading.RLock()
@@ -73,6 +75,10 @@ _intraday_cache_thread: threading.Thread | None = None
 _intraday_cache: Dict[str, Dict[str, object]] = {}
 _historical_cache_lock = threading.RLock()
 _historical_cache: Dict[str, Dict[str, object]] = {}
+_interval_historical_cache_lock = threading.RLock()
+_interval_historical_cache: Dict[str, Dict[str, object]] = {}
+_interval_live_cache_lock = threading.RLock()
+_interval_live_cache: Dict[str, Dict[str, object]] = {}
 
 try:
     _MARKET_TZ: ZoneInfo | None = ZoneInfo(STOCK_MARKET_TIMEZONE)
@@ -249,6 +255,202 @@ def _load_intraday_cache() -> None:
 
 def _historical_cache_key(ticker: str, period: str) -> str:
     return f"{ticker.upper()}|{period}"
+
+
+def _interval_cache_key(ticker: str, interval: str) -> str:
+    return f"{ticker.upper()}|{interval.lower()}"
+
+
+def _interval_seconds(interval: str) -> int:
+    normalized = interval.lower()
+    if normalized == "1h":
+        return 3600
+    if normalized == "4h":
+        return 4 * 3600
+    if normalized == "1wk":
+        return 7 * 24 * 3600
+    return 24 * 3600
+
+
+def _interval_live_ttl_seconds(interval: str) -> int:
+    return max(60, min(3600, _interval_seconds(interval) // 4))
+
+
+def _split_interval_rows(rows: List[Dict[str, object]]) -> tuple[List[Dict[str, object]], Dict[str, object] | None]:
+    if not rows:
+        return [], None
+    if len(rows) == 1:
+        return [], dict(rows[0])
+    stable_rows = [dict(row) for row in rows[:-1] if isinstance(row, dict)]
+    live_row = dict(rows[-1]) if isinstance(rows[-1], dict) else None
+    return stable_rows, live_row
+
+
+def _persist_interval_historical_cache() -> None:
+    _ensure_intraday_cache_dir()
+    with _interval_historical_cache_lock:
+        payload = {
+            "saved_at": time.time(),
+            "entries": _interval_historical_cache,
+        }
+    fd, tmp_path = tempfile.mkstemp(prefix=f"{INTERVAL_HISTORICAL_CACHE_FILE.stem}.", suffix=".tmp", dir=str(INTRADAY_CACHE_DIR))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream)
+        os.replace(tmp_path, INTERVAL_HISTORICAL_CACHE_FILE)
+    finally:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _persist_interval_live_cache() -> None:
+    _ensure_intraday_cache_dir()
+    with _interval_live_cache_lock:
+        payload = {
+            "saved_at": time.time(),
+            "entries": _interval_live_cache,
+        }
+    fd, tmp_path = tempfile.mkstemp(prefix=f"{INTERVAL_LIVE_CACHE_FILE.stem}.", suffix=".tmp", dir=str(INTRADAY_CACHE_DIR))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream)
+        os.replace(tmp_path, INTERVAL_LIVE_CACHE_FILE)
+    finally:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _load_interval_historical_cache() -> None:
+    if not INTERVAL_HISTORICAL_CACHE_FILE.exists():
+        return
+
+    try:
+        with INTERVAL_HISTORICAL_CACHE_FILE.open("r", encoding="utf-8") as stream:
+            payload = json.load(stream)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[cache] Failed to load interval historical cache: %s", exc)
+        return
+
+    entries = payload.get("entries", {}) if isinstance(payload, dict) else {}
+    if not isinstance(entries, dict):
+        return
+
+    cleaned: Dict[str, Dict[str, object]] = {}
+    for cache_key, entry in entries.items():
+        if not isinstance(cache_key, str) or not isinstance(entry, dict):
+            continue
+        saved_at = entry.get("saved_at")
+        rows = entry.get("rows")
+        if not isinstance(saved_at, (int, float)) or not isinstance(rows, list):
+            continue
+        cleaned[cache_key] = {
+            "saved_at": float(saved_at),
+            "rows": _sanitize_json_value(rows),
+        }
+
+    with _interval_historical_cache_lock:
+        _interval_historical_cache.clear()
+        _interval_historical_cache.update(cleaned)
+
+
+def _load_interval_live_cache() -> None:
+    if not INTERVAL_LIVE_CACHE_FILE.exists():
+        return
+
+    try:
+        with INTERVAL_LIVE_CACHE_FILE.open("r", encoding="utf-8") as stream:
+            payload = json.load(stream)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[cache] Failed to load interval live cache: %s", exc)
+        return
+
+    entries = payload.get("entries", {}) if isinstance(payload, dict) else {}
+    if not isinstance(entries, dict):
+        return
+
+    cleaned: Dict[str, Dict[str, object]] = {}
+    for cache_key, entry in entries.items():
+        if not isinstance(cache_key, str) or not isinstance(entry, dict):
+            continue
+        updated_at = entry.get("updated_at")
+        row = entry.get("row")
+        if not isinstance(updated_at, (int, float)) or not isinstance(row, dict):
+            continue
+        cleaned[cache_key] = {
+            "updated_at": float(updated_at),
+            "row": _sanitize_json_value(dict(row)),
+        }
+
+    with _interval_live_cache_lock:
+        _interval_live_cache.clear()
+        _interval_live_cache.update(cleaned)
+
+
+def _store_cached_interval_rows(ticker: str, interval: str, rows: List[Dict[str, object]]) -> None:
+    cache_key = _interval_cache_key(ticker, interval)
+    stable_rows, live_row = _split_interval_rows(rows)
+
+    with _interval_historical_cache_lock:
+        _interval_historical_cache[cache_key] = {
+            "saved_at": time.time(),
+            "rows": _sanitize_json_value(stable_rows),
+        }
+    try:
+        _persist_interval_historical_cache()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[cache] Failed to persist interval historical cache: %s", exc)
+
+    if live_row is not None:
+        with _interval_live_cache_lock:
+            _interval_live_cache[cache_key] = {
+                "updated_at": time.time(),
+                "row": _sanitize_json_value(dict(live_row)),
+            }
+        try:
+            _persist_interval_live_cache()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[cache] Failed to persist interval live cache: %s", exc)
+
+
+def _get_cached_interval_rows(ticker: str, interval: str) -> List[Dict[str, object]] | None:
+    cache_key = _interval_cache_key(ticker, interval)
+    now = time.time()
+    interval_secs = _interval_seconds(interval)
+    live_ttl = _interval_live_ttl_seconds(interval)
+
+    with _interval_historical_cache_lock:
+        hist_entry = _interval_historical_cache.get(cache_key)
+        if not isinstance(hist_entry, dict):
+            return None
+        hist_saved_at = hist_entry.get("saved_at")
+        hist_rows = hist_entry.get("rows")
+        if not isinstance(hist_saved_at, (int, float)) or not isinstance(hist_rows, list):
+            return None
+        if now - float(hist_saved_at) > interval_secs:
+            return None
+        stable_rows = [
+            _sanitize_json_value(dict(row))
+            for row in hist_rows
+            if isinstance(row, dict)
+        ]
+
+    with _interval_live_cache_lock:
+        live_entry = _interval_live_cache.get(cache_key)
+        if not isinstance(live_entry, dict):
+            return stable_rows if stable_rows else None
+        updated_at = live_entry.get("updated_at")
+        live_row = live_entry.get("row")
+        if not isinstance(updated_at, (int, float)) or not isinstance(live_row, dict):
+            return stable_rows if stable_rows else None
+        if now - float(updated_at) > live_ttl:
+            return stable_rows if stable_rows else None
+        return stable_rows + [_sanitize_json_value(dict(live_row))]
 
 
 def _persist_historical_cache() -> None:
@@ -951,6 +1153,10 @@ def fetch_ticker_history_ohlc_interval(ticker: str, interval: str) -> List[Dict[
     if normalized_interval == "1d":
         return fetch_ticker_history_ohlc(ticker, period=config["period"])
 
+    cached_rows = _get_cached_interval_rows(ticker, normalized_interval)
+    if cached_rows is not None:
+        return cached_rows
+
     history = _call_history_with_retry(
         ticker,
         period=config["period"],
@@ -963,6 +1169,8 @@ def fetch_ticker_history_ohlc_interval(ticker: str, interval: str) -> List[Dict[
     rows = _history_to_interval_rows(history, date_only=date_only)
     if normalized_interval == "4h":
         rows = _aggregate_intraday_rows(rows, hours=4)
+
+    _store_cached_interval_rows(ticker, normalized_interval, rows)
     return rows
 
 
@@ -1103,3 +1311,5 @@ def screen_stock_list_stream(
 
 _load_intraday_cache()
 _load_historical_cache()
+_load_interval_historical_cache()
+_load_interval_live_cache()

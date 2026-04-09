@@ -4,7 +4,7 @@ This file tracks upcoming work outside the changelog.
 
 ## Next
 
-- Add technical indicators (SMA, EMA, RSI, ADX/DMI) and fundamental screening. [done]
+- Add fundamental screening and scoring
 - vertical scaling in charts
 - relative volume
 - coloring of sma table for crossovers
@@ -13,15 +13,17 @@ This file tracks upcoming work outside the changelog.
 
 ## Soon
 
-- Add caching layer for repeated requests
+- Create different watchlists that can be loaded and saved
+- Get euroSTOXX indices
+- Create configurable filters (sector, number filters like >x, crossover filters like SMA5>SMA20 or DI+>DI-) with savable filter settings
+- Add persistent logging (.log file for all server messages)
+- Add test suite for backend service functions and API routes
 - add local logs for frontend and backend
 - Add basic tests for backend service functions and API routes.
-- Add clear API error payload format for frontend display.
 - Add selectable screening period from the frontend UI.
-- Add sorting and filtering controls in frontend result table.
+- Add filtering controls in frontend result table.
 - Add ticker details panel with mini chart via `/history/{ticker}`.
 - Improve frontend error and loading states.
-- Add technical indicators and richer charting support.
 - Add export options for screening results.
 - Add containerized local run option.
 

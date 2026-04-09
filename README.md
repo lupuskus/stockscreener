@@ -53,6 +53,12 @@ Latest `1d` stock and index data is cached locally in `.cache/intraday_quotes.js
 
 Historical OHLC data up to yesterday is cached locally in `.cache/historical_prices.json`. That cache is reused for chart/history requests and for indicator calculations. It is refreshed lazily when needed, including once after market close on the same market day (default London close `16:35`) and again on new market days.
 
+Non-daily chart timeframes (`1h`, `4h`, `1wk`) also use disk-backed caches:
+- historical (stable) timeframe candles in `.cache/interval_historical_prices.json`
+- latest in-progress candle in `.cache/interval_live_prices.json`
+
+This keeps constant bars cached while refreshing only the still-variable bar at an interval-aware cadence.
+
 ## Setup
 
 1. Clone repository:
