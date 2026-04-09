@@ -22,6 +22,7 @@ WATCHLIST_FILE = "watchlist.stocks"
 INDEXES = {
     "ftse100": "^FTSE",
     "ftse250": "^FTMC",
+    "dax": "^GDAXI",
 }
 
 
