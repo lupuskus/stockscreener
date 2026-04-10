@@ -242,8 +242,6 @@ def _load_intraday_cache() -> None:
         data = entry.get("data")
         if not isinstance(updated_at, (int, float)) or not isinstance(data, dict):
             continue
-        if not _is_same_local_day(float(updated_at)):
-            continue
         cleaned[ticker.upper()] = {
             "updated_at": float(updated_at),
             "data": _sanitize_json_value(dict(data)),
@@ -526,6 +524,22 @@ def _get_cached_historical_rows(ticker: str, period: str) -> List[Dict[str, obje
         ]
 
 
+def _get_cached_historical_rows_any_age(ticker: str, period: str) -> List[Dict[str, object]] | None:
+    cache_key = _historical_cache_key(ticker, period)
+    with _historical_cache_lock:
+        entry = _historical_cache.get(cache_key)
+        if not entry:
+            return None
+        rows = entry.get("rows")
+        if not isinstance(rows, list):
+            return None
+        return [
+            _sanitize_json_value(dict(row))
+            for row in rows
+            if isinstance(row, dict)
+        ]
+
+
 def _store_cached_historical_rows(ticker: str, period: str, rows: List[Dict[str, object]]) -> None:
     cache_key = _historical_cache_key(ticker, period)
     with _historical_cache_lock:
@@ -716,6 +730,73 @@ def _get_cached_intraday_snapshot(ticker: str) -> Dict[str, object] | None:
         if not _is_same_local_day(float(updated_at)):
             return None
         return _sanitize_json_value(dict(data))
+
+
+def _get_cached_intraday_snapshot_any_age(ticker: str) -> Dict[str, object] | None:
+    normalized = ticker.upper()
+    with _intraday_cache_lock:
+        entry = _intraday_cache.get(normalized)
+        if not entry:
+            return None
+        data = entry.get("data")
+        if not isinstance(data, dict):
+            return None
+        return _sanitize_json_value(dict(data))
+
+
+def _get_cached_intraday_entry_any_age(ticker: str) -> tuple[Dict[str, object] | None, float | None]:
+    normalized = ticker.upper()
+    with _intraday_cache_lock:
+        entry = _intraday_cache.get(normalized)
+        if not entry:
+            return None, None
+        updated_at = entry.get("updated_at")
+        data = entry.get("data")
+        if not isinstance(data, dict):
+            return None, None
+        timestamp = float(updated_at) if isinstance(updated_at, (int, float)) else None
+        return _sanitize_json_value(dict(data)), timestamp
+
+
+def _get_cached_screen_snapshot(ticker: str) -> Dict[str, object] | None:
+    cached_intraday, updated_at = _get_cached_intraday_entry_any_age(ticker)
+    if cached_intraday is not None:
+        is_stale = True
+        if updated_at is not None:
+            is_stale = not _is_same_local_day(updated_at)
+        payload = dict(cached_intraday)
+        payload["is_stale"] = is_stale
+        return payload
+
+    # Fallback: use last stable historical bar if available.
+    historical_rows = _get_cached_historical_rows_any_age(ticker, "1y")
+    if not historical_rows:
+        return None
+
+    last_row = historical_rows[-1]
+    open_value = _to_float(last_row.get("open"))
+    high_value = _to_float(last_row.get("high"))
+    low_value = _to_float(last_row.get("low"))
+    close_value = _to_float(last_row.get("close"))
+    volume_value = _to_int(last_row.get("volume"))
+    if (
+        open_value is None
+        or high_value is None
+        or low_value is None
+        or close_value is None
+        or volume_value is None
+    ):
+        return None
+
+    return {
+        "ticker": ticker,
+        "open": open_value,
+        "high": high_value,
+        "low": low_value,
+        "close": close_value,
+        "volume": volume_value,
+        "is_stale": True,
+    }
 
 
 def _store_cached_intraday_snapshot(
@@ -1274,14 +1355,46 @@ def screen_stock_list_stream(
     """Yield progress events then a final complete event for SSE streaming."""
     tickers = read_stock_list(filename)
     total = len(tickers)
-    results: List[Dict[str, object]] = []
+    results_by_ticker: Dict[str, Dict[str, object]] = {}
+
+    if period == "1d":
+        cached_count = 0
+        yield {"type": "stage", "stage": "cached", "status": "start", "total": total}
+        for ticker in tickers:
+            cached = _get_cached_screen_snapshot(ticker)
+            if cached is None:
+                continue
+            results_by_ticker[ticker] = cached
+            cached_count += 1
+            yield {
+                "type": "row",
+                "phase": "cached",
+                "ticker": ticker,
+                "stock": cached,
+            }
+
+        yield {
+            "type": "stage",
+            "stage": "cached",
+            "status": "complete",
+            "cached": cached_count,
+            "total": total,
+        }
 
     failed = 0
     for i, ticker in enumerate(tickers, 1):
         try:
             data = _fetch_screen_snapshot(ticker, period)
             if data:
-                results.append(data)
+                if isinstance(data, dict):
+                    data["is_stale"] = False
+                results_by_ticker[ticker] = data
+                yield {
+                    "type": "row",
+                    "phase": "fresh",
+                    "ticker": ticker,
+                    "stock": data,
+                }
             else:
                 failed += 1
                 logger.warning("[screen] No data for %s", ticker)
@@ -1296,6 +1409,7 @@ def screen_stock_list_stream(
             logger.warning("[screen] Unexpected error for %s: %s", ticker, exc)
         yield {"type": "progress", "done": i, "total": total}
 
+    results = [results_by_ticker[ticker] for ticker in tickers if ticker in results_by_ticker]
     if failed > 0:
         logger.warning("[screen] Completed %s: %d/%d retrieved, %d failed", filename, len(results), total, failed)
 

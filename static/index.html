@@ -272,6 +272,14 @@
       font-weight: 700;
     }
 
+    .stale-mark {
+      margin-left: 4px;
+      color: #b45309;
+      font-weight: 700;
+      font-size: 10px;
+      vertical-align: middle;
+    }
+
     td.numeric {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-size: 11px;
@@ -920,6 +928,11 @@
   }
 
   function formatCellValue(column, stock) {
+    if (column.key === "ticker") {
+      const staleSuffix = stock.is_stale ? '<span class="stale-mark" title="Cached (possibly old)">\u25cf</span>' : "";
+      return String(stock.ticker || "") + staleSuffix;
+    }
+
     if (column.key === "watch_toggle") {
       const inWatchlist = watchlistSet.has(stock.ticker);
       const busy = watchlistBusy.has(stock.ticker);
@@ -1920,6 +1933,25 @@
     showProgress(0, 1);
 
     return new Promise((resolve) => {
+      const stockMap = new Map();
+
+      const upsertRow = (rawStock) => {
+        if (!rawStock || !rawStock.ticker) {
+          return;
+        }
+        const openValue = Number(rawStock.open);
+        const closeValue = Number(rawStock.close);
+        const hasOpen = Number.isFinite(openValue) && openValue !== 0;
+        const hasClose = Number.isFinite(closeValue);
+        const row = {
+          ...rawStock,
+          is_stale: Boolean(rawStock.is_stale),
+          chg: hasOpen && hasClose ? closeValue - openValue : null,
+          chgpct: hasOpen && hasClose ? ((closeValue - openValue) / openValue) * 100 : null,
+        };
+        stockMap.set(row.ticker, row);
+      };
+
       const url =
         API +
         "/screen/stream?stock_list=" +
@@ -1937,14 +1969,27 @@
 
         if (msg.type === "progress") {
           showProgress(msg.done, msg.total);
+          if (msg.total > 0) {
+            elStatus.textContent = stockMap.size + " / " + msg.total + " stocks";
+          }
+        } else if (msg.type === "stage") {
+          if (msg.stage === "cached" && msg.status === "start") {
+            elStatus.textContent = "Loading cached prices...";
+          } else if (msg.stage === "cached" && msg.status === "complete") {
+            elStatus.textContent = "Loaded " + (msg.cached || 0) + " cached / " + (msg.total || 0) + ". Refreshing live prices...";
+          }
+        } else if (msg.type === "row") {
+          upsertRow(msg.stock);
+          stockData = Array.from(stockMap.values());
+          renderTable();
+          if (currTicker === msg.ticker || selectedTicker === msg.ticker) {
+            loadChart(currTicker, currPeriod);
+          }
         } else if (msg.type === "complete") {
           source.close();
           hideProgress();
-          stockData = (msg.stocks || []).map((s) => ({
-            ...s,
-            chg: s.close - s.open,
-            chgpct: ((s.close - s.open) / s.open) * 100,
-          }));
+          (msg.stocks || []).forEach(upsertRow);
+          stockData = Array.from(stockMap.values());
           let statusText = msg.retrieved + " / " + msg.requested + " stocks";
           if (msg.failed && msg.failed > 0) {
             statusText += " (" + msg.failed + " failed \u2014 Yahoo Finance may be unavailable)";
