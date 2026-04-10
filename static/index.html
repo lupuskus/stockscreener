@@ -698,6 +698,8 @@
   let currStockList = "";
   let isMobileViewport = window.matchMedia("(max-width: 1100px)").matches;
   let visibleBars = isMobileViewport ? DEFAULT_MOBILE_BARS : DEFAULT_DESKTOP_BARS;
+  let activeScreenSource = null;
+  let activeScreenRunId = 0;
 
   function readUiState() {
     try {
@@ -1927,7 +1929,13 @@
       return;
     }
 
-    elSelect.disabled = true;
+    const runId = ++activeScreenRunId;
+
+    if (activeScreenSource) {
+      activeScreenSource.close();
+      activeScreenSource = null;
+    }
+
     elStatus.textContent = "";
     elError.textContent = "";
     showProgress(0, 1);
@@ -1962,8 +1970,12 @@
         encodeURIComponent(elSelect.value) +
         "&period=1d";
       const source = new EventSource(url);
+      activeScreenSource = source;
 
       source.onmessage = (e) => {
+        if (runId !== activeScreenRunId) {
+          return;
+        }
         let msg;
         try {
           msg = JSON.parse(e.data);
@@ -1991,6 +2003,9 @@
           }
         } else if (msg.type === "complete") {
           source.close();
+          if (activeScreenSource === source) {
+            activeScreenSource = null;
+          }
           hideProgress();
           (msg.stocks || []).forEach(upsertRow);
           stockData = Array.from(stockMap.values());
@@ -2009,22 +2024,28 @@
 
           renderTable();
           saveUiState();
-          elSelect.disabled = false;
           resolve();
         } else if (msg.type === "error") {
           source.close();
+          if (activeScreenSource === source) {
+            activeScreenSource = null;
+          }
           hideProgress();
           elError.textContent = msg.message || "Screen failed";
-          elSelect.disabled = false;
           resolve();
         }
       };
 
       source.onerror = () => {
+        if (runId !== activeScreenRunId) {
+          return;
+        }
         source.close();
+        if (activeScreenSource === source) {
+          activeScreenSource = null;
+        }
         hideProgress();
         elError.textContent = "Screen failed";
-        elSelect.disabled = false;
         resolve();
       };
     });
