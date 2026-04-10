@@ -902,6 +902,95 @@ def get_intraday_cache_status() -> Dict[str, object]:
     }
 
 
+def _iso_or_none(timestamp: float | None) -> str | None:
+    if timestamp is None:
+        return None
+    try:
+        return datetime.fromtimestamp(float(timestamp)).isoformat()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _file_summary(path: Path) -> Dict[str, object]:
+    if not path.exists():
+        return {
+            "path": str(path),
+            "exists": False,
+            "size_bytes": 0,
+            "modified_at": None,
+        }
+    stat = path.stat()
+    return {
+        "path": str(path),
+        "exists": True,
+        "size_bytes": int(stat.st_size),
+        "modified_at": _iso_or_none(float(stat.st_mtime)),
+    }
+
+
+def get_cache_summary() -> Dict[str, object]:
+    with _intraday_cache_lock:
+        intraday_entries = len(_intraday_cache)
+        intraday_updated_values = [
+            float(entry["updated_at"])
+            for entry in _intraday_cache.values()
+            if isinstance(entry, dict) and isinstance(entry.get("updated_at"), (int, float))
+        ]
+
+    with _historical_cache_lock:
+        historical_entries = len(_historical_cache)
+        historical_saved_values = [
+            float(entry["saved_at"])
+            for entry in _historical_cache.values()
+            if isinstance(entry, dict) and isinstance(entry.get("saved_at"), (int, float))
+        ]
+
+    with _interval_historical_cache_lock:
+        interval_historical_entries = len(_interval_historical_cache)
+        interval_historical_saved_values = [
+            float(entry["saved_at"])
+            for entry in _interval_historical_cache.values()
+            if isinstance(entry, dict) and isinstance(entry.get("saved_at"), (int, float))
+        ]
+
+    with _interval_live_cache_lock:
+        interval_live_entries = len(_interval_live_cache)
+        interval_live_updated_values = [
+            float(entry["updated_at"])
+            for entry in _interval_live_cache.values()
+            if isinstance(entry, dict) and isinstance(entry.get("updated_at"), (int, float))
+        ]
+
+    return {
+        "cache_dir": str(INTRADAY_CACHE_DIR),
+        "generated_at": _iso_or_none(time.time()),
+        "intraday": {
+            "entries": intraday_entries,
+            "last_updated": _iso_or_none(max(intraday_updated_values) if intraday_updated_values else None),
+            "oldest_updated": _iso_or_none(min(intraday_updated_values) if intraday_updated_values else None),
+            "file": _file_summary(INTRADAY_CACHE_FILE),
+        },
+        "historical_daily": {
+            "entries": historical_entries,
+            "last_saved": _iso_or_none(max(historical_saved_values) if historical_saved_values else None),
+            "oldest_saved": _iso_or_none(min(historical_saved_values) if historical_saved_values else None),
+            "file": _file_summary(HISTORICAL_CACHE_FILE),
+        },
+        "historical_interval": {
+            "entries": interval_historical_entries,
+            "last_saved": _iso_or_none(max(interval_historical_saved_values) if interval_historical_saved_values else None),
+            "oldest_saved": _iso_or_none(min(interval_historical_saved_values) if interval_historical_saved_values else None),
+            "file": _file_summary(INTERVAL_HISTORICAL_CACHE_FILE),
+        },
+        "live_interval": {
+            "entries": interval_live_entries,
+            "last_updated": _iso_or_none(max(interval_live_updated_values) if interval_live_updated_values else None),
+            "oldest_updated": _iso_or_none(min(interval_live_updated_values) if interval_live_updated_values else None),
+            "file": _file_summary(INTERVAL_LIVE_CACHE_FILE),
+        },
+    }
+
+
 def _watchlist_path() -> Path:
     return ROOT_DIR / WATCHLIST_FILE
 

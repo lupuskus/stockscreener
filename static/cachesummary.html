@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cache Summary</title>
+  <style>
+    :root {
+      --bg: #f3f5f8;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe2ea;
+      --accent: #2563eb;
+    }
+    body {
+      margin: 0;
+      padding: 20px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 24px;
+    }
+    .top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    button {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 4px 0;
+    }
+    .path {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      word-break: break-all;
+    }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 10px;
+      overflow: auto;
+      font-size: 12px;
+      max-height: 360px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Cache Summary</h1>
+  <div class="top">
+    <button id="refresh-btn" type="button">Refresh</button>
+    <label><input id="auto-refresh" type="checkbox" checked /> Auto refresh (10s)</label>
+    <span id="status" class="muted">Loading...</span>
+  </div>
+
+  <div id="cards" class="grid"></div>
+  <h2>Raw JSON</h2>
+  <pre id="raw-json"></pre>
+
+  <script>
+    const cardsEl = document.getElementById("cards");
+    const rawEl = document.getElementById("raw-json");
+    const statusEl = document.getElementById("status");
+    const refreshBtn = document.getElementById("refresh-btn");
+    const autoRefreshEl = document.getElementById("auto-refresh");
+
+    function fieldRow(label, value) {
+      return '<div class="row"><span>' + label + '</span><strong>' + (value ?? "-") + '</strong></div>';
+    }
+
+    function renderCard(title, block) {
+      const file = block.file || {};
+      return (
+        '<section class="card">' +
+        '<div class="title">' + title + '</div>' +
+        fieldRow("Entries", block.entries) +
+        fieldRow("Last", block.last_updated || block.last_saved) +
+        fieldRow("Oldest", block.oldest_updated || block.oldest_saved) +
+        fieldRow("File exists", String(Boolean(file.exists))) +
+        fieldRow("Size", (file.size_bytes ?? 0) + " bytes") +
+        '<div class="path">' + (file.path || "") + '</div>' +
+        '</section>'
+      );
+    }
+
+    function renderSummary(summary) {
+      cardsEl.innerHTML = [
+        renderCard("Intraday", summary.intraday || {}),
+        renderCard("Historical Daily", summary.historical_daily || {}),
+        renderCard("Historical Interval", summary.historical_interval || {}),
+        renderCard("Live Interval", summary.live_interval || {}),
+      ].join("");
+      rawEl.textContent = JSON.stringify(summary, null, 2);
+    }
+
+    async function loadSummary() {
+      statusEl.textContent = "Loading...";
+      try {
+        const res = await fetch("/cache-summary", { cache: "no-store" });
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        const summary = await res.json();
+        renderSummary(summary);
+        statusEl.textContent = "Updated: " + new Date().toLocaleTimeString();
+      } catch (err) {
+        statusEl.textContent = "Failed: " + (err.message || String(err));
+      }
+    }
+
+    refreshBtn.addEventListener("click", loadSummary);
+
+    setInterval(() => {
+      if (autoRefreshEl.checked) {
+        loadSummary();
+      }
+    }, 10000);
+
+    loadSummary();
+  </script>
+</body>
+</html>

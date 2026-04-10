@@ -1940,14 +1940,18 @@
           return;
         }
         const openValue = Number(rawStock.open);
+        const lastCloseValue = Number(rawStock.last_close);
         const closeValue = Number(rawStock.close);
         const hasOpen = Number.isFinite(openValue) && openValue !== 0;
+        const hasLastClose = Number.isFinite(lastCloseValue) && lastCloseValue !== 0;
         const hasClose = Number.isFinite(closeValue);
+        const baseValue = hasOpen ? openValue : (hasLastClose ? lastCloseValue : null);
+        const hasBase = baseValue != null;
         const row = {
           ...rawStock,
           is_stale: Boolean(rawStock.is_stale),
-          chg: hasOpen && hasClose ? closeValue - openValue : null,
-          chgpct: hasOpen && hasClose ? ((closeValue - openValue) / openValue) * 100 : null,
+          chg: hasBase && hasClose ? closeValue - baseValue : null,
+          chgpct: hasBase && hasClose ? ((closeValue - baseValue) / baseValue) * 100 : null,
         };
         stockMap.set(row.ticker, row);
       };

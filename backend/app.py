@@ -29,6 +29,7 @@ from backend.service import (
     fetch_ticker_history,
     fetch_ticker_history_ohlc,
     fetch_ticker_history_ohlc_interval,
+    get_cache_summary,
     get_watchlist,
     list_stock_files,
     read_stock_list,
@@ -370,6 +371,11 @@ def frontend() -> FileResponse:
     return FileResponse(os.path.join(_STATIC_DIR, "index.html"))
 
 
+@app.get("/cachesummary", include_in_schema=False)
+def cache_summary_page() -> FileResponse:
+    return FileResponse(os.path.join(_STATIC_DIR, "cachesummary.html"))
+
+
 class ScreenRequest(BaseModel):
     stock_list: str = Field(..., description="Name of the .stocks file")
     period: str = Field("1d", description="Yahoo Finance period string")
@@ -399,6 +405,11 @@ def health() -> Dict[str, str]:
 @app.get("/build-info")
 def build_info() -> Dict[str, str]:
     return _BUILD_METADATA
+
+
+@app.get("/cache-summary")
+def cache_summary() -> Dict[str, object]:
+    return get_cache_summary()
 
 
 @app.get("/stock-lists")
